@@ -241,6 +241,17 @@ input[type="range"]:focus-visible,
   }
 }
 
+@media (min-width: 1000px) {
+  .panel {
+    width: min(1100px, calc(100% - 24px));
+  }
+
+  .panel__grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px 18px;
+  }
+}
+
 @media (max-width: 640px) {
   .panel {
     padding: 12px 12px 14px;
