@@ -1,0 +1,11 @@
+{
+  "name": "living-ambience-assets",
+  "private": true,
+  "description": "Front-end sources for Living Ambience. No runtime dependencies; TypeScript is only used for type checking (esbuild does the bundling).",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
