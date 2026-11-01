@@ -3,7 +3,8 @@
   "private": true,
   "description": "Front-end sources for Living Ambience. Phaser is the only runtime dependency; TypeScript is only used for type checking (esbuild does the bundling).",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --no-warnings --test \"js/music_lab/**/*.test.ts\""
   },
   "devDependencies": {
     "typescript": "^5.6.3"

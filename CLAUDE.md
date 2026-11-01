@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Living Ambience: a calm ambient-sound web app. Phoenix 1.7 only serves pages and static assets. There is no database and no server-side state. Almost all logic is TypeScript in `assets/js/`. Two routes (`lib/living_ambience_web/router.ex`):
 
 - `/` is the cafe-by-a-rainy-window scene. Phaser 4 owns the loop and input, entities draw with Canvas 2D, and the audio is raw Web Audio.
-- `/music` is a throwaway generative-music spike built on Tone.js (`assets/js/music_lab/lab.ts`). A redesign into a "studio with a guide" is specced in `docs/superpowers/specs/2026-11-01-music-studio-design.md`. It draws on the course notes in `../knowledge/building-generative-music-systems/` (outside this repo).
+- `/music` is a generative-music "studio with a guide" built on Tone.js (`assets/js/music_lab/`, booted by `studio.ts`). Design: `docs/superpowers/specs/2026-11-01-music-studio-design.md`. It draws on the course notes in `../knowledge/building-generative-music-systems/` (outside this repo).
 
 `app.ts` boots both. Each boot function returns early when its page's DOM root is missing.
 
@@ -22,7 +22,7 @@ mix test test/living_ambience_web/controllers/page_controller_test.exs:LINE   # 
 mix typecheck                     # cd assets && npx tsc --noEmit
 ```
 
-Bundling uses Phoenix's esbuild binary (pinned to 0.17.11 in `config/config.exs`), not an npm script. `tsc` only type-checks, so every TS file needs to pass under `strict`, `noUnusedLocals`, `noUnusedParameters` and `isolatedModules`. There is no JS test runner. To verify front-end behavior, drive the page in a browser. `app.ts` exposes `window.__ambience.{audio(), levels(), mix()}` for inspecting live audio gains, smoothed visual levels and the mix state.
+Bundling uses Phoenix's esbuild binary (pinned to 0.17.11 in `config/config.exs`), not an npm script. `tsc` only type-checks, so every TS file needs to pass under `strict`, `noUnusedLocals`, `noUnusedParameters` and `isolatedModules`. Pure modules (those with a `*.test.ts`, no `tone`, no `window`) are tested with `node --test`: `cd assets && npm test`, or `mix test.js`. To verify front-end behavior, drive the page in a browser. `app.ts` exposes `window.__ambience.{audio(), levels(), mix()}` for inspecting live audio gains, smoothed visual levels and the mix state. `/music` exposes `window.__musicStudio.{settings(), notes(), renderPeak(settings, seconds), extremeSettings, engine, change(next)}`.
 
 ## Architecture (the `/` scene)
 
@@ -40,3 +40,7 @@ Other rules that span files:
 - Honor `prefers-reduced-motion`: no parallax, half the particles (`Frame.particleScale`), and fades instead of walks.
 
 `README.md` has the step-by-step for adding a scene. `PLAN.md` has the volume→visual mapping table for each layer.
+
+## Architecture (the `/music` studio)
+
+Settings store (`store.ts`) → engine (scheduler + graph + drift on `Tone.Transport`) and visual (`ripples.ts`). Each layer draws from a seeded RNG forked by label (`rng.ts`), so a seed reproduces a piece. Guide entries (`guide/entries.ts`) are data and must match the guide ids in `ui/control-defs.ts`; a test pins this. Audio safety lives in `CAPS` (`settings.ts`) plus the master limiter, layer-count headroom and final soft clip in `audio/graph.ts` (curve math in `audio/softclip.ts`). Never bypass them. Pure modules must not import `tone` or touch the DOM.

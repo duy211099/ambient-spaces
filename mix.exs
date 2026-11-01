@@ -65,6 +65,7 @@ defmodule LivingAmbience.MixProject do
     [
       setup: ["deps.get", "cmd --cd assets npm install", "assets.setup", "assets.build"],
       typecheck: ["cmd --cd assets npx tsc --noEmit"],
+      "test.js": ["cmd --cd assets npm test"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["tailwind living_ambience", "esbuild living_ambience"],
       "assets.deploy": [
