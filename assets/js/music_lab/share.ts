@@ -1,6 +1,7 @@
 import { normalizeSettings, type StudioSettings } from "./settings.ts";
 
 const PREFIX = "v1.";
+const MAX_SHARE_CHARS = 16384;
 
 function toBase64Url(text: string): string {
   const bytes = new TextEncoder().encode(text);
@@ -21,7 +22,7 @@ export function encodeShare(s: StudioSettings): string {
 }
 
 export function decodeShare(text: string): StudioSettings | null {
-  if (typeof text !== "string" || !text.startsWith(PREFIX)) return null;
+  if (typeof text !== "string" || !text.startsWith(PREFIX) || text.length > MAX_SHARE_CHARS) return null;
   try {
     const parsed: unknown = JSON.parse(fromBase64Url(text.slice(PREFIX.length)));
     if (typeof parsed !== "object" || parsed === null || (parsed as { version?: unknown }).version !== 1) return null;

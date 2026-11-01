@@ -121,7 +121,7 @@ export function applyLayerValue(layer: LayerSettings, def: ControlDef, value: un
   return setPath(layer, def.path, value);
 }
 
-export const MAX_LAYERS = 8;
+export const MAX_LAYERS = CAPS.maxLayers;
 
 /** Appends a copy of the "notes" layer (or the first) with a fresh id and label. */
 export function addLayer(s: StudioSettings): StudioSettings {

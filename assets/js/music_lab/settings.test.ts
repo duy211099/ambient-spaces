@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_SETTINGS, normalizeSettings, extremeSettings } from "./settings.ts";
+import { NOTE_SETS } from "./notesets.ts";
 
 test("DEFAULT_SETTINGS is already normalized", () => {
   assert.deepEqual(normalizeSettings(DEFAULT_SETTINGS), DEFAULT_SETTINGS);
@@ -119,4 +120,20 @@ test("seed is floored and clamped to [1, 2^31-1]", () => {
   assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, seed: 42.9 }).seed, 42);
   assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, seed: 0 }).seed, 1);
   assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, seed: 2 ** 40 }).seed, 2 ** 31 - 1);
+});
+
+test("structure caps: layers, label, drifts, weights", () => {
+  const base = structuredClone(DEFAULT_SETTINGS);
+  const layers = Array.from({ length: 5000 }, (_, i) => ({ ...base.layers[1], id: `l${i}`, label: "x".repeat(1000) }));
+  const drifts = Array.from({ length: 100 }, (_, i) => ({ ...base.drifts[0], id: `d${i}` }));
+  const out = normalizeSettings({ ...base, layers, drifts });
+  assert.equal(out.layers.length, 8);
+  assert.equal(out.layers[0].label.length, 40);
+  assert.equal(out.drifts.length, 16);
+  const notes = base.layers[1].noteSetIds.length ? NOTE_SETS[base.layers[1].noteSetIds[0]].notes : [];
+  const weights: Record<string, number> = { bogus: 2 };
+  for (let i = 0; i < 100; i++) weights[`k${i}`] = 2;
+  for (const n of notes) weights[n] = 2;
+  const w = normalizeSettings({ ...base, layers: [{ ...base.layers[1], weights }] }).layers[0].weights;
+  assert.ok(Object.keys(w).length <= 32 && !("bogus" in w) && notes.every((n) => w[n] === 2));
 });

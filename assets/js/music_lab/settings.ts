@@ -65,6 +65,10 @@ export const CAPS = {
   limiterDb: -1,
   weight: [0.25, 4],
   seedMax: 2 ** 31 - 1,
+  maxLayers: 8,
+  maxDrifts: 16,
+  maxWeightKeys: 32,
+  labelMax: 40,
 } as const;
 
 const INSTRUMENTS: readonly InstrumentId[] = ["piano", "keys", "pad", "bell", "tone"];
@@ -144,16 +148,19 @@ function normalizeLayer(raw: unknown): LayerSettings | null {
   const lo = num(every[0], d.changeEverySec[0], 1, 86400);
   const hi = num(every[1], d.changeEverySec[1], 1, 86400);
   const weights: Record<string, number> = {};
+  const finalIds = ids.length > 0 ? ids : [...d.noteSetIds];
+  const known = new Set(finalIds.flatMap((id) => NOTE_SETS[id]?.notes ?? []));
   if (isObj(raw.weights)) {
     for (const [note, w] of Object.entries(raw.weights)) {
-      if (typeof w === "number" && Number.isFinite(w)) {
+      if (Object.keys(weights).length >= CAPS.maxWeightKeys) break;
+      if (known.has(note) && typeof w === "number" && Number.isFinite(w)) {
         weights[note] = num(w, 1, CAPS.weight[0], CAPS.weight[1]);
       }
     }
   }
   return {
     id: raw.id,
-    label: str(raw.label, d.label),
+    label: str(raw.label, d.label).slice(0, CAPS.labelMax),
     instrument: pick(raw.instrument, INSTRUMENTS, d.instrument),
     mode: pick(raw.mode, MODES, d.mode),
     noteSetIds: ids.length > 0 ? ids : [...d.noteSetIds],
@@ -179,6 +186,7 @@ function normalizeDrifts(raw: unknown, layerIds: Set<string>): DriftSettings[] {
   const out: DriftSettings[] = [];
   const seen = new Set<string>();
   for (const r of raw) {
+    if (out.length >= CAPS.maxDrifts) break;
     if (!isObj(r) || typeof r.id !== "string" || seen.has(r.id) || !validTarget(r.target, layerIds)) continue;
     seen.add(r.id);
     out.push({
@@ -212,6 +220,7 @@ export function normalizeSettings(raw: unknown): StudioSettings {
     const seen = new Set<string>();
     for (const l of Array.isArray(raw.layers) ? raw.layers : []) {
       const n = normalizeLayer(l);
+      if (layers.length >= CAPS.maxLayers) break;
       if (n && !seen.has(n.id)) { seen.add(n.id); layers.push(n); }
     }
     if (layers.length === 0) return structuredClone(DEFAULT_SETTINGS);

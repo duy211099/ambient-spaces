@@ -61,3 +61,17 @@ test("a second beginPreview keeps the first snapshot", () => {
   store.endPreview(false);
   assert.equal(store.get().seed, DEFAULT_SETTINGS.seed);
 });
+
+test("a throwing listener does not skip the others", () => {
+  const { store, seen } = make();
+  const err = console.error;
+  console.error = () => {};
+  try {
+    store.subscribe(() => { throw new Error("boom"); });
+    store.subscribe((s) => seen.push(s));
+    store.set(withSeed(7));
+  } finally {
+    console.error = err;
+  }
+  assert.equal(seen.filter((s) => s.seed === 7).length, 2);
+});

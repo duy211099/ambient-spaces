@@ -25,3 +25,7 @@ test("bad share text → null", () => {
 test("share caps hostile values", () => {
   assert.equal(decodeShare(encodeShare({ ...DEFAULT_SETTINGS, masterDb: 20 } as any))!.masterDb, -3);
 });
+
+test("oversized share text → null", () => {
+  assert.equal(decodeShare("v1." + "A".repeat(16384)), null);
+});

@@ -51,6 +51,12 @@ export class SettingsStore {
   }
 
   private notify(): void {
-    for (const fn of [...this.listeners]) fn(this.state);
+    for (const fn of [...this.listeners]) {
+      try {
+        fn(this.state);
+      } catch (err) {
+        console.error(err);
+      }
+    }
   }
 }

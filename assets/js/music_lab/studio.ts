@@ -41,7 +41,11 @@ function makePersist(): (s: StudioSettings) => void {
     }
     clearTimeout(timer);
     timer = setTimeout(() => {
-      history.replaceState(history.state, "", `${location.pathname}${location.search}${HASH_PREFIX}${text}`);
+      try {
+        history.replaceState(history.state, "", `${location.pathname}${location.search}${HASH_PREFIX}${text}`);
+      } catch {
+        /* replaceState can throw in sandboxed frames */
+      }
     }, PERSIST_DEBOUNCE_MS);
   };
 }
@@ -117,6 +121,7 @@ export function bootMusicStudio(): void {
   const recordBtn = q<HTMLButtonElement>("[data-record]");
   const copyStatus = q("[data-copy-status]");
   const linkInput = q<HTMLInputElement>("[data-link-input]");
+  let copyTimer: ReturnType<typeof setTimeout> | undefined;
   let recorder: StudioRecorder | null = null;
   let recording = false;
 
@@ -183,7 +188,8 @@ export function bootMusicStudio(): void {
     }
     if (copyStatus) {
       copyStatus.textContent = ok ? "copied" : "press Ctrl+C to copy";
-      setTimeout(() => {
+      clearTimeout(copyTimer);
+      copyTimer = setTimeout(() => {
         if (copyStatus) copyStatus.textContent = "";
       }, 2500);
     }
