@@ -87,3 +87,36 @@ test("extremeSettings is at the caps", () => {
   assert.ok(s.layers.every((l) => l.volumeDb === -6 && l.density === 1 && l.brightness === 1 && !l.muted));
   assert.deepEqual(normalizeSettings(s), s);
 });
+
+test("prototype-chain names are not note-set ids", () => {
+  const base = DEFAULT_SETTINGS.layers[1];
+  const s = normalizeSettings({ ...DEFAULT_SETTINGS, layers: [{ ...base, noteSetIds: ["constructor", "__proto__", "toString"] }] });
+  assert.deepEqual(s.layers[0].noteSetIds, base.noteSetIds);
+});
+
+test("modulatedBy self-reference and cycles are broken", () => {
+  const d = (id: string, modulatedBy: string | null) => ({ id, target: "bus.reverbWet", periodSec: 100, depth: 0.5, enabled: true, modulatedBy });
+  const self = normalizeSettings({ ...DEFAULT_SETTINGS, drifts: [d("a", "a")] });
+  assert.equal(self.drifts[0].modulatedBy, null);
+  const cyc = normalizeSettings({ ...DEFAULT_SETTINGS, drifts: [d("a", "b"), d("b", "a")] });
+  assert.ok(cyc.drifts.some((x) => x.modulatedBy === null));
+  assert.equal(cyc.drifts.length, 2);
+});
+
+test("duplicate layer ids keep the first", () => {
+  const l = DEFAULT_SETTINGS.layers[1];
+  const s = normalizeSettings({ ...DEFAULT_SETTINGS, layers: [{ ...l, label: "first" }, { ...l, label: "second" }] });
+  assert.equal(s.layers.length, 1);
+  assert.equal(s.layers[0].label, "first");
+});
+
+test("changeEverySec is sorted min/max", () => {
+  const s = normalizeSettings({ ...DEFAULT_SETTINGS, layers: [{ ...DEFAULT_SETTINGS.layers[1], changeEverySec: [400, 100] }] });
+  assert.deepEqual(s.layers[0].changeEverySec, [100, 400]);
+});
+
+test("seed is floored and clamped to [1, 2^31-1]", () => {
+  assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, seed: 42.9 }).seed, 42);
+  assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, seed: 0 }).seed, 1);
+  assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, seed: 2 ** 40 }).seed, 2 ** 31 - 1);
+});

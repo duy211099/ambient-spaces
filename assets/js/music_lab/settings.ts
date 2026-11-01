@@ -137,7 +137,7 @@ function normalizeLayer(raw: unknown): LayerSettings | null {
   if (!isObj(raw) || typeof raw.id !== "string" || raw.id.length === 0) return null;
   const d = DEFAULT_SETTINGS.layers.find((l) => l.id === raw.id) ?? DEFAULT_SETTINGS.layers[1];
   const ids = Array.isArray(raw.noteSetIds)
-    ? raw.noteSetIds.filter((x): x is string => typeof x === "string" && x in NOTE_SETS)
+    ? raw.noteSetIds.filter((x): x is string => typeof x === "string" && Object.prototype.hasOwnProperty.call(NOTE_SETS, x))
     : [];
   const every = Array.isArray(raw.changeEverySec) ? raw.changeEverySec : [];
   const lo = num(every[0], d.changeEverySec[0], 1, 86400);
@@ -146,7 +146,7 @@ function normalizeLayer(raw: unknown): LayerSettings | null {
   if (isObj(raw.weights)) {
     for (const [note, w] of Object.entries(raw.weights)) {
       if (typeof w === "number" && Number.isFinite(w)) {
-        weights[note] = Math.min(CAPS.weight[1], Math.max(CAPS.weight[0], w));
+        weights[note] = num(w, 1, CAPS.weight[0], CAPS.weight[1]);
       }
     }
   }
