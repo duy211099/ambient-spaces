@@ -28,6 +28,28 @@ mix test
 mix typecheck        # runs: cd assets && npx tsc --noEmit
 ```
 
+## Music studio (/music)
+
+A generative-music studio with an in-page guide and tour, built on Tone.js with
+CC0 piano samples (`priv/static/audio/music/piano/`, credited in `CREDITS.md`).
+Layers of notes play on seeded timers; slow drifts move parameters over minutes;
+a ripple canvas shows each note. Settings persist locally and can be shared as a
+link (`#s=...`).
+
+Code is in `assets/js/music_lab/`: `studio.ts` boots it; pure modules (settings,
+scheduler, timing, share, store, `guide/`, `ui/control-defs.ts`) sit beside their
+`*.test.ts`; `audio/`, `ui/` and `visual/` hold the Tone.js and DOM code.
+
+```
+cd assets && npm test     # node --test on the pure modules (or: mix test.js)
+```
+
+Peak check (browser console on /music, after starting playback; must print < 1):
+
+```js
+await __musicStudio.renderPeak(__musicStudio.extremeSettings(), 30)
+```
+
 ## Layout
 
 ```

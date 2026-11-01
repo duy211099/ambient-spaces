@@ -1,7 +1,7 @@
 # Music Studio (/music): design
 
 Date: 2026-11-01
-Status: draft, awaiting approval
+Status: implemented
 
 ## Intent
 
@@ -227,3 +227,12 @@ Each step ends playable in the browser and passes the existing checks.
 - **Long renders.** Render 30–60 minutes offline to a file.
 - **MIDI out** to drive external synths.
 - **Saved presets gallery** of seeds you liked.
+
+## Deviations
+
+- Share links enforce structural caps: at most 8 layers and 16 drifts.
+- One drift per target. Density drifts ignore "modulated by".
+- A drift enabled mid-play sweeps centred on the current value.
+- The tour exit defaults to "Back to my mix". Nothing is persisted until "Keep this sound".
+- The note log shows the scheduled time as `t=`.
+- The cafe `.panel` CSS clashed, so the studio uses `.studio-panel`.
