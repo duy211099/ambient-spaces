@@ -33,23 +33,31 @@ function loadInitial(): StudioSettings {
   return normalizeSettings(structuredClone(DEFAULT_SETTINGS));
 }
 
+/** Saves to localStorage and the URL hash once input settles, and right away if the page is being left. */
 function makePersist(): (s: StudioSettings) => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  return (s) => {
-    const text = encodeShare(s);
+  let pending: StudioSettings | null = null;
+  const flush = () => {
+    clearTimeout(timer);
+    if (!pending) return;
+    const text = encodeShare(pending);
+    pending = null;
     try {
       localStorage.setItem(STORAGE_KEY, text);
     } catch {
       /* storage blocked or full */
     }
+    try {
+      history.replaceState(history.state, "", `${location.pathname}${location.search}${HASH_PREFIX}${text}`);
+    } catch {
+      /* replaceState can throw in sandboxed frames */
+    }
+  };
+  addEventListener("pagehide", flush);
+  return (s) => {
+    pending = s;
     clearTimeout(timer);
-    timer = setTimeout(() => {
-      try {
-        history.replaceState(history.state, "", `${location.pathname}${location.search}${HASH_PREFIX}${text}`);
-      } catch {
-        /* replaceState can throw in sandboxed frames */
-      }
-    }, PERSIST_DEBOUNCE_MS);
+    timer = setTimeout(flush, PERSIST_DEBOUNCE_MS);
   };
 }
 
@@ -70,9 +78,21 @@ export function bootMusicStudio(): void {
   const logLines: string[] = [];
 
   const getStatus = (): Status => status;
+  let samplesWait = 0;
   const setStatus = (s: Status) => {
     status = s;
+    samplesWait++;
     statusEl.textContent = s;
+  };
+  // A layer switched to the piano mid-play waits for its recordings; say so without leaving the "playing" state.
+  const showSamplesLoading = (pending: Promise<void> | null) => {
+    if (!pending || status !== "playing") return;
+    const wait = ++samplesWait;
+    statusEl.textContent = "loading piano…";
+    const done = () => {
+      if (wait === samplesWait && status === "playing") statusEl.textContent = status;
+    };
+    pending.then(done, done);
   };
 
   const onNote = (e: NoteEvent & { layerIndex: number }) => {
@@ -90,7 +110,9 @@ export function bootMusicStudio(): void {
   const controls = renderControls(controlsRoot, store.get(), (next) => change(next));
   store.subscribe((s) => {
     controls.sync(s);
-    if (status === "playing") engine.apply(s);
+    if (status !== "playing") return;
+    engine.apply(s);
+    showSamplesLoading(engine.samplesPending());
   });
 
   function change(next: StudioSettings): void {
@@ -114,7 +136,10 @@ export function bootMusicStudio(): void {
     setStatus("playing");
     ripples?.start();
     syncRecordButton();
-    if (store.get() !== started) engine.apply(store.get()); // edited while loading
+    if (store.get() !== started) {
+      engine.apply(store.get()); // edited while loading
+      showSamplesLoading(engine.samplesPending());
+    }
   }
 
   function stop(): void {

@@ -278,7 +278,7 @@ export function renderControls(root: HTMLElement, initial: StudioSettings, onCha
   function syncDrifts(): void {
     if (!driftHost) return;
     for (const d of current.drifts) {
-      const row = driftHost.querySelector<HTMLElement>(`[data-drift="${d.id}"]`);
+      const row = driftHost.querySelector<HTMLElement>(`[data-drift="${CSS.escape(d.id)}"]`);
       if (row) showDrift(row, d);
     }
   }
@@ -288,7 +288,7 @@ export function renderControls(root: HTMLElement, initial: StudioSettings, onCha
     focusAfterRender = null;
     if (!f) return;
     const target = f.kind === "layer"
-      ? root.querySelector<HTMLElement>(`section[data-layer="${f.id}"] .ctl select, section[data-layer="${f.id}"] .ctl input`)
+      ? root.querySelector<HTMLElement>(`section[data-layer="${CSS.escape(f.id)}"] .ctl select, section[data-layer="${CSS.escape(f.id)}"] .ctl input`)
       : root.querySelector<HTMLElement>("button[data-add-layer]:not(:disabled)");
     target?.focus();
   }

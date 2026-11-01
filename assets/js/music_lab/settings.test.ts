@@ -89,6 +89,37 @@ test("extremeSettings is at the caps", () => {
   assert.deepEqual(normalizeSettings(s), s);
 });
 
+test("extremeSettings covers every layer slot with synths and reverb size at its cap", () => {
+  const s = extremeSettings(8);
+  assert.equal(s.layers.length, 8);
+  assert.equal(new Set(s.layers.map((l) => l.id)).size, 8);
+  assert.ok(s.layers.every((l) => l.instrument !== "piano" && l.volumeDb === -6 && l.send === 1));
+  assert.equal(s.bus.reverbSize, 0.9);
+  assert.ok(s.drifts.some((d) => d.target === "bus.reverbSize" && d.depth === 1));
+  assert.deepEqual(normalizeSettings(s), s);
+  assert.equal(extremeSettings(99).layers.length, 8);
+});
+
+test("reverb size is capped below the runaway zone", () => {
+  assert.equal(normalizeSettings({ ...DEFAULT_SETTINGS, bus: { ...DEFAULT_SETTINGS.bus, reverbSize: 1 } }).bus.reverbSize, 0.9);
+});
+
+test("unsafe drift ids are replaced and their modulatedBy links follow", () => {
+  const d = (id: unknown, modulatedBy: string | null, target = "bus.reverbWet") => ({ id, target, periodSec: 100, depth: 0.5, enabled: true, modulatedBy });
+  const s = normalizeSettings({
+    ...DEFAULT_SETTINGS,
+    drifts: [d('a"]x', null), d("drift1", 'a"]x', "bus.dampening"), d("x".repeat(33), null, "bus.delayFeedback"), d("ok_1-B", null, "bus.reverbSize")],
+  });
+  const ids = s.drifts.map((x) => x.id);
+  assert.equal(ids.length, 4);
+  assert.ok(ids.every((id) => /^[A-Za-z0-9_-]{1,32}$/.test(id)), ids.join(","));
+  assert.equal(new Set(ids).size, 4);
+  assert.equal(ids[1], "drift1");
+  assert.equal(ids[3], "ok_1-B");
+  assert.equal(s.drifts[1].modulatedBy, ids[0]); // renamed target kept
+  assert.deepEqual(normalizeSettings(s), s);
+});
+
 test("prototype-chain names are not note-set ids", () => {
   const base = DEFAULT_SETTINGS.layers[1];
   const s = normalizeSettings({ ...DEFAULT_SETTINGS, layers: [{ ...base, noteSetIds: ["constructor", "__proto__", "toString"] }] });

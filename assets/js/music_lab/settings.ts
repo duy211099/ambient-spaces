@@ -63,6 +63,8 @@ export const CAPS = {
   layerDb: [-40, -6],
   masterDb: [-40, -3],
   limiterDb: -1,
+  // Freeverb feeds room size straight into its comb feedback; near 1 the tail never decays and builds up.
+  reverbSizeMax: 0.9,
   weight: [0.25, 4],
   seedMax: 2 ** 31 - 1,
   maxLayers: 8,
@@ -130,7 +132,7 @@ function normalizeBus(raw: unknown): BusSettings {
   const r = isObj(raw) ? raw : {};
   return {
     reverbKind: pick(r.reverbKind, REVERBS, d.reverbKind),
-    reverbSize: num(r.reverbSize, d.reverbSize, 0, 1),
+    reverbSize: num(r.reverbSize, d.reverbSize, 0, CAPS.reverbSizeMax),
     dampeningHz: num(r.dampeningHz, d.dampeningHz, 200, 20000),
     delayTime: num(r.delayTime, d.delayTime, 0.05, 1),
     delayFeedback: num(r.delayFeedback, d.delayFeedback, 0, CAPS.delayFeedbackMax),
@@ -181,22 +183,43 @@ function validTarget(target: unknown, layerIds: Set<string>): target is DriftTar
   return parts.length === 3 && parts[0] === "layer" && layerIds.has(parts[1]) && LAYER_PARAMS.includes(parts[2]);
 }
 
+/** Drift ids end up in DOM attributes and selectors, so they are limited to a plain, short alphabet. */
+export const DRIFT_ID = /^[A-Za-z0-9_-]{1,32}$/;
+
 function normalizeDrifts(raw: unknown, layerIds: Set<string>): DriftSettings[] {
   if (!Array.isArray(raw)) return [];
   const out: DriftSettings[] = [];
   const seen = new Set<string>();
+  // Every safe-looking id in the input, so a regenerated id can't collide with one or capture a modulatedBy.
+  const reserved = new Set<string>();
+  for (const r of raw) {
+    if (!isObj(r)) continue;
+    for (const v of [r.id, r.modulatedBy]) if (typeof v === "string" && DRIFT_ID.test(v)) reserved.add(v);
+  }
+  const renamed = new Map<string, string>();
+  let next = 1;
+  const freshId = () => {
+    while (reserved.has(`drift${next}`)) next++;
+    reserved.add(`drift${next}`);
+    return `drift${next}`;
+  };
   for (const r of raw) {
     if (out.length >= CAPS.maxDrifts) break;
     if (!isObj(r) || typeof r.id !== "string" || seen.has(r.id) || !validTarget(r.target, layerIds)) continue;
     seen.add(r.id);
+    const id = DRIFT_ID.test(r.id) ? r.id : freshId();
+    if (id !== r.id) renamed.set(r.id, id);
     out.push({
-      id: r.id,
+      id,
       target: r.target,
       periodSec: num(r.periodSec, 1000, 1, 86400),
       depth: num(r.depth, 0.5, 0, 1),
       enabled: typeof r.enabled === "boolean" ? r.enabled : true,
       modulatedBy: typeof r.modulatedBy === "string" ? r.modulatedBy : null,
     });
+  }
+  for (const d of out) {
+    if (d.modulatedBy !== null) d.modulatedBy = renamed.get(d.modulatedBy) ?? d.modulatedBy;
   }
   const byId = new Map(out.map((d) => [d.id, d]));
   for (const d of out) {
@@ -239,18 +262,37 @@ export function normalizeSettings(raw: unknown): StudioSettings {
   }
 }
 
-export function extremeSettings(): StudioSettings {
+/**
+ * Every level control at its cap, for the offline peak check. Piano layers become "keys": the offline render does
+ * not load samples, so a synth stands in. `layerCount` (up to CAPS.maxLayers) repeats the default layers.
+ */
+export function extremeSettings(layerCount: number = DEFAULT_SETTINGS.layers.length): StudioSettings {
   const s = structuredClone(DEFAULT_SETTINGS);
   s.masterDb = CAPS.masterDb[1];
   s.bus.delayFeedback = CAPS.delayFeedbackMax;
   s.bus.delayWet = 1;
+  s.bus.reverbSize = CAPS.reverbSizeMax;
+  const base = s.layers;
+  const count = Math.min(CAPS.maxLayers, Math.max(1, Math.floor(layerCount)));
+  s.layers = Array.from({ length: count }, (_, i) => {
+    const l = structuredClone(base[i % base.length]);
+    if (i >= base.length) {
+      l.id = `${l.id}${i}`;
+      l.label = `${l.label} ${i}`;
+    }
+    return l;
+  });
   for (const l of s.layers) {
+    if (l.instrument === "piano") l.instrument = "keys";
     l.volumeDb = CAPS.layerDb[1];
     l.density = 1;
     l.brightness = 1;
     l.send = 1;
     l.muted = false;
   }
-  s.drifts = s.drifts.map((d) => ({ ...d, depth: 1, enabled: true }));
+  s.drifts = [
+    ...s.drifts.map((d) => ({ ...d, depth: 1, enabled: true })),
+    { id: "size", target: "bus.reverbSize", periodSec: 60, depth: 1, enabled: true, modulatedBy: null },
+  ];
   return s;
 }

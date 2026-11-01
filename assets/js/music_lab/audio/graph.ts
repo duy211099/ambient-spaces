@@ -1,6 +1,7 @@
 import * as Tone from "tone";
 import { effectiveLayer, type EffectiveLayer } from "../mood.ts";
 import { CAPS, type BusSettings, type DriftTarget, type LayerSettings, type StudioSettings } from "../settings.ts";
+import { layerHeadroomGain, SOFT_CLIP_RANGE, softClipCurve } from "./softclip.ts";
 
 const RAMP = 0.3;
 const LAYER_FADE = 2;
@@ -9,6 +10,7 @@ const DECAY_DEBOUNCE_MS = 250;
 export const REVERB_WET = 0.5;
 // Freeverb's one-pole damping goes unstable above ~sampleRate/pi, so keep it well under that.
 const FREEVERB_DAMPENING_HZ = 10000;
+const SOFT_CLIP_POINTS = 8193;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 export const cutoffHz = (brightness: number) => 300 * Math.pow(2, 6 * brightness);
@@ -31,6 +33,8 @@ export class StudioGraph {
 
   private masterVolume: Tone.Volume;
   private limiter: Tone.Limiter;
+  private clipScale: Tone.Gain;
+  private clip: Tone.WaveShaper;
   private delay: Tone.FeedbackDelay;
   private damp: Tone.Filter;
   private reverb: Reverb;
@@ -43,9 +47,15 @@ export class StudioGraph {
 
   constructor(s: StudioSettings) {
     this.mood = s.mood;
+    // Tone's Limiter is a soft-knee compressor that lets fast peaks through, so a soft clip after it is the real
+    // ceiling: identity below about -6 dBFS, never reaching full scale above it.
+    this.clip = new Tone.WaveShaper(softClipCurve(SOFT_CLIP_POINTS));
+    this.clip.toDestination();
+    this.clipScale = new Tone.Gain(1 / SOFT_CLIP_RANGE);
+    this.clipScale.connect(this.clip);
     this.limiter = new Tone.Limiter(CAPS.limiterDb);
-    this.limiter.toDestination();
-    this.output = this.limiter;
+    this.limiter.connect(this.clipScale);
+    this.output = this.clip;
     this.masterVolume = new Tone.Volume(masterDb(s.masterDb));
     this.masterVolume.connect(this.limiter);
     this.master = new Tone.Gain(1);
@@ -69,6 +79,7 @@ export class StudioGraph {
     this.reverb.connect(this.master);
 
     for (const l of s.layers) this.addLayer(l);
+    this.master.gain.value = layerHeadroomGain(this.channels.size);
   }
 
   /** Resolves once the convolver impulse response (if any) is generated. */
@@ -98,6 +109,12 @@ export class StudioGraph {
     volume.connect(send);
     send.connect(this.delay);
     this.channels.set(l.id, { filter, volume, send });
+    this.applyHeadroom();
+  }
+
+  /** `master` carries the layer-count trim (see layerHeadroomGain), faded with the layer it follows. */
+  private applyHeadroom(): void {
+    this.master.gain.rampTo(layerHeadroomGain(this.channels.size), LAYER_FADE);
   }
 
   /** Fades the channel out, then disposes it once the instrument's tail is gone. */
@@ -111,6 +128,7 @@ export class StudioGraph {
       ch.send.dispose();
     };
     if (immediate) return dispose();
+    this.applyHeadroom();
     ch.volume.volume.rampTo(-100, LAYER_FADE);
     setTimeout(dispose, DISPOSE_AFTER_MS);
   }
@@ -194,6 +212,8 @@ export class StudioGraph {
     this.master.dispose();
     this.masterVolume.dispose();
     this.limiter.dispose();
+    this.clipScale.dispose();
+    this.clip.dispose();
   }
 
   private makeReverb(b: BusSettings): Reverb {

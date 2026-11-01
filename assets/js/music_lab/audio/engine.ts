@@ -64,6 +64,12 @@ export class StudioEngine {
     return this.graph;
   }
 
+  /** Resolves when every voice's samples have loaded; null when none is waiting. */
+  samplesPending(): Promise<void> | null {
+    const waiting = [...this.voices.values()].some((v) => v.instrument instanceof Tone.Sampler && !v.instrument.loaded);
+    return waiting ? Tone.loaded() : null;
+  }
+
   async start(s: StudioSettings): Promise<void> {
     if (this.isPlaying || this.starting) return;
     this.starting = true;

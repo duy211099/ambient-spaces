@@ -1,4 +1,6 @@
 <style>
+  /* app.css locks html/body to the viewport for the cafe scene; the studio is a long page, so let it scroll. */
+  html:has(#music-studio), body:has(#music-studio) { height: auto; overflow: visible; }
   body { margin: 0; background: #17120f; color: #eadfd3; font: 15px/1.5 system-ui, sans-serif; }
   #music-studio { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
   #music-studio:has(#guide-panel:not([hidden])) { grid-template-columns: minmax(0, 1fr) 300px; }

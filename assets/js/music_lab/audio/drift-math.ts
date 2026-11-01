@@ -8,8 +8,9 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 export function legalRange(target: DriftTarget): readonly [number, number] {
   if (target === "bus.dampening") return DAMPENING_HZ;
   if (target === "bus.delayFeedback") return [0, CAPS.delayFeedbackMax];
+  if (target === "bus.reverbSize") return [0, CAPS.reverbSizeMax];
   if (target.endsWith(".volume")) return CAPS.layerDb;
-  return [0, 1]; // reverbWet, reverbSize, brightness, density
+  return [0, 1]; // reverbWet, brightness, density
 }
 
 /** Half the legal span times depth, centred on `base` and clamped to the legal range. */

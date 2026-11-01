@@ -15,7 +15,7 @@ export const GUIDE_ENTRIES: Record<string, GuideEntry> = Object.fromEntries([
   entry("sampler", "The piano sampler", "Lesson 4",
     "A sampler plays short recordings of a real instrument, here an upright piano. " +
     "Only a dozen notes are recorded, and the sampler shifts the nearest recording up or down to play any other note. " +
-    "The recordings have to load before the first note can sound, so you may see \"loading piano…\" for a moment."),
+    "The recordings have to load before the first note can sound, so you may see \"loading piano…\" for a moment, both when you press Play and when you switch a playing layer to the piano."),
   entry("instrument", "Instrument", "Lesson 9",
     "Each layer can play a different sound: the recorded piano, or one of the synth voices. " +
     "Swapping the sound changes the mood a lot while the notes and timing stay the same. " +
@@ -64,7 +64,7 @@ export const GUIDE_ENTRIES: Record<string, GuideEntry> = Object.fromEntries([
     "All layers share one reverb, so the room sounds the same for every layer."),
   entry("drift", "Slow drift", "Lesson 8",
     "A drift slowly sweeps a setting up and down on its own, over minutes, using a very slow wave. " +
-    "With a period of 1000 seconds the reverb takes over 16 minutes to move from dry to wet and back, so you feel it more than hear it. " +
+    "With a period of 1000 seconds the reverb amount takes over 16 minutes to swing from mostly dry to mostly wet and back, so you feel it more than hear it. " +
     "Only one drift per target takes effect: a second drift on the same target does nothing. " +
     "Density drifts ignore \"modulated by\"."),
   entry("drift-on-drift", "Drift on drift", "Lesson 8",
@@ -87,7 +87,8 @@ export const GUIDE_ENTRIES: Record<string, GuideEntry> = Object.fromEntries([
     "Darker cuts the high, sharp part of the sound, which makes it feel distant and calm; brighter lets it shine."),
   entry("master", "Master volume", "Beyond the course",
     "This sets the loudness of everything together. " +
-    "A limiter sits at the very end, so no combination of settings can clip or distort."),
+    "A limiter at the end evens out loud peaks, and after it a soft clipper keeps the output just below full scale. " +
+    "Normal levels pass through untouched, so no setting can clip, though very loud settings stacked together may sound a little squashed."),
   entry("mood", "Mood", "Beyond the course",
     "Mood is one slider that nudges several settings at once. " +
     "Calm makes notes sparser, darker and deeper in the reverb; busy makes them more frequent, brighter and closer. " +

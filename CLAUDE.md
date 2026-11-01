@@ -43,4 +43,4 @@ Other rules that span files:
 
 ## Architecture (the `/music` studio)
 
-Settings store (`store.ts`) → engine (scheduler + graph + drift on `Tone.Transport`) and visual (`ripples.ts`). Each layer draws from a seeded RNG forked by label (`rng.ts`), so a seed reproduces a piece. Guide entries (`guide/entries.ts`) are data and must match the guide ids in `ui/control-defs.ts`; a test pins this. Audio safety lives in `CAPS` (`settings.ts`) plus the master limiter in `audio/graph.ts`. Never bypass either. Pure modules must not import `tone` or touch the DOM.
+Settings store (`store.ts`) → engine (scheduler + graph + drift on `Tone.Transport`) and visual (`ripples.ts`). Each layer draws from a seeded RNG forked by label (`rng.ts`), so a seed reproduces a piece. Guide entries (`guide/entries.ts`) are data and must match the guide ids in `ui/control-defs.ts`; a test pins this. Audio safety lives in `CAPS` (`settings.ts`) plus the master limiter, layer-count headroom and final soft clip in `audio/graph.ts` (curve math in `audio/softclip.ts`). Never bypass them. Pure modules must not import `tone` or touch the DOM.

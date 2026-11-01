@@ -38,7 +38,7 @@ export const CONTROL_DEFS: ControlDef[] = [
   { id: "seed", label: "Seed", kind: "number", scope: "global", path: "seed", min: 1, max: CAPS.seedMax, step: 1, guide: "seed" },
 
   { id: "reverbKind", label: "Reverb type", kind: "select", scope: "bus", path: "bus.reverbKind", options: { freeverb: "Freeverb", convolver: "Convolver" }, guide: "reverb-kind" },
-  { id: "reverbSize", label: "Reverb size", kind: "range", scope: "bus", path: "bus.reverbSize", min: 0, max: 1, step: 0.01, guide: "reverb" },
+  { id: "reverbSize", label: "Reverb size", kind: "range", scope: "bus", path: "bus.reverbSize", min: 0, max: CAPS.reverbSizeMax, step: 0.01, guide: "reverb" },
   { id: "dampeningHz", label: "Dampening (Hz)", kind: "range", scope: "bus", path: "bus.dampeningHz", min: 200, max: 20000, step: 100, guide: "dampening" },
   { id: "delayTime", label: "Delay time (s)", kind: "range", scope: "bus", path: "bus.delayTime", min: 0.05, max: 1, step: 0.01, guide: "delay" },
   { id: "delayFeedback", label: "Delay feedback", kind: "range", scope: "bus", path: "bus.delayFeedback", min: 0, max: CAPS.delayFeedbackMax, step: 0.01, guide: "feedback" },
