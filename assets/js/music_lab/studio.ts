@@ -74,6 +74,6 @@ export function bootMusicStudio(): void {
   q("[data-reshuffle]")?.addEventListener("click", () => change({ ...current, seed: randomSeed() }));
 
   Object.assign(window, {
-    __musicStudio: { settings: () => current, renderPeak, extremeSettings },
+    __musicStudio: { settings: () => current, renderPeak, extremeSettings, engine, change: (next: StudioSettings) => change(next) },
   });
 }

@@ -1,6 +1,6 @@
 import { NOTE_SETS } from "../notesets.ts";
 import { PIANO_SAMPLES } from "../piano.ts";
-import { CAPS, type LayerSettings, type StudioSettings } from "../settings.ts";
+import { CAPS, type DriftSettings, type DriftTarget, type LayerSettings, type StudioSettings } from "../settings.ts";
 
 export interface ControlDef {
   id: string;
@@ -156,4 +156,46 @@ export function applyControl(s: StudioSettings, def: ControlDef, value: unknown,
   if (def.scope !== "layer") return setPath(s, def.path, value);
   const layers = s.layers.map((l, i) => (i === layerIndex ? applyLayerValue(l, def, value) : l));
   return { ...s, layers };
+}
+
+export const MAX_DRIFTS = 12;
+
+const BUS_DRIFT_TARGETS: Record<string, string> = {
+  "bus.reverbWet": "Reverb amount",
+  "bus.reverbSize": "Reverb size",
+  "bus.dampening": "Dampening",
+  "bus.delayFeedback": "Echo feedback",
+};
+const LAYER_DRIFT_PARAMS: Record<string, string> = { brightness: "brightness", volume: "volume", density: "density" };
+
+/** Every target a drift can move, with a readable label. */
+export function driftTargets(s: StudioSettings): Record<string, string> {
+  const out: Record<string, string> = { ...BUS_DRIFT_TARGETS };
+  for (const l of s.layers) {
+    for (const [param, label] of Object.entries(LAYER_DRIFT_PARAMS)) out[`layer.${l.id}.${param}`] = `${l.label} ${label}`;
+  }
+  return out;
+}
+
+/** Appends a drift on the first target nothing drifts yet (or the reverb amount). */
+export function addDrift(s: StudioSettings): StudioSettings {
+  if (s.drifts.length >= MAX_DRIFTS) return s;
+  let n = s.drifts.length + 1;
+  while (s.drifts.some((d) => d.id === `drift${n}`)) n++;
+  const used = new Set(s.drifts.map((d) => d.target));
+  const target = (Object.keys(driftTargets(s)).find((t) => !used.has(t as DriftTarget)) ?? "bus.reverbWet") as DriftTarget;
+  const drift: DriftSettings = { id: `drift${n}`, target, periodSec: 60, depth: 0.5, enabled: true, modulatedBy: null };
+  return { ...s, drifts: [...s.drifts, drift] };
+}
+
+/** Removes a drift and frees any drift it modulated. */
+export function removeDrift(s: StudioSettings, id: string): StudioSettings {
+  const drifts = s.drifts
+    .filter((d) => d.id !== id)
+    .map((d) => (d.modulatedBy === id ? { ...d, modulatedBy: null } : d));
+  return { ...s, drifts };
+}
+
+export function updateDrift(s: StudioSettings, id: string, patch: Partial<Omit<DriftSettings, "id">>): StudioSettings {
+  return { ...s, drifts: s.drifts.map((d) => (d.id === id ? { ...d, ...patch } : d)) };
 }

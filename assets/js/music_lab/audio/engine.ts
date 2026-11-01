@@ -3,6 +3,7 @@ import { effectiveLayer } from "../mood.ts";
 import { createRng, type Rng } from "../rng.ts";
 import { LayerScheduler, type Clock, type NoteEvent } from "../scheduler.ts";
 import type { InstrumentId, LayerSettings, StudioSettings } from "../settings.ts";
+import { DriftRig } from "./drift.ts";
 import { StudioGraph } from "./graph.ts";
 import { makeInstrument, noteLength, type Instrument } from "./instruments.ts";
 
@@ -33,6 +34,7 @@ const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringif
 export class StudioEngine {
   private onNote: (e: NoteEvent & { layerIndex: number }) => void;
   private graph: StudioGraph | null = null;
+  private rig: DriftRig | null = null;
   private voices = new Map<string, Voice>();
   private settings: StudioSettings | null = null;
   private clock: Clock = toneClock(Tone.getTransport());
@@ -54,6 +56,14 @@ export class StudioEngine {
     return this.graph.output;
   }
 
+  get drift(): DriftRig | null {
+    return this.rig;
+  }
+
+  get studioGraph(): StudioGraph | null {
+    return this.graph;
+  }
+
   async start(s: StudioSettings): Promise<void> {
     if (this.isPlaying || this.starting) return;
     this.starting = true;
@@ -63,6 +73,8 @@ export class StudioEngine {
       if (token !== this.token) return; // stopped during the gesture wait
       const graph = new StudioGraph(s);
       this.graph = graph;
+      this.rig = new DriftRig(graph, createRng(s.seed).fork("drift"));
+      this.rig.apply(s);
       this.settings = structuredClone(s);
       this.isPlaying = true;
       for (const l of s.layers) this.voices.set(l.id, this.makeVoice(l, s.seed));
@@ -92,6 +104,7 @@ export class StudioEngine {
       if (!s.layers.some((l) => l.id === id)) {
         this.disposeVoice(this.voices.get(id)!, true);
         this.voices.delete(id);
+        this.rig?.dropLayer(id);
         graph.removeLayer(id);
       }
     }
@@ -126,6 +139,7 @@ export class StudioEngine {
     if (s.masterDb !== prev.masterDb) graph.applyMaster(s.masterDb);
     if (!sameJson(s.bus, prev.bus)) graph.applyBus(s.bus);
     for (const l of s.layers) graph.applyLayer(l, effectiveLayer(l, s.mood));
+    this.rig?.apply(s);
   }
 
   stop(): void {
@@ -141,9 +155,16 @@ export class StudioEngine {
     transport.stop();
     transport.cancel(0);
     const graph = this.graph;
+    const rig = this.rig;
     this.graph = null;
+    this.rig = null;
     this.settings = null;
-    if (graph) setTimeout(() => graph.dispose(), DISPOSE_AFTER_MS);
+    if (graph) {
+      setTimeout(() => {
+        rig?.dispose();
+        graph.dispose();
+      }, DISPOSE_AFTER_MS);
+    }
   }
 
   private makeScheduler(rng: Rng): LayerScheduler {
@@ -152,7 +173,10 @@ export class StudioEngine {
       rng,
       (e) => this.play(e),
       () => this.settings?.mood ?? 0.5,
-      (l) => effectiveLayer(l, this.settings?.mood ?? 0.5).density,
+      (l, t) => {
+        const base = effectiveLayer(l, this.settings?.mood ?? 0.5).density;
+        return this.rig ? this.rig.densityAt(l.id, base, t) : base;
+      },
     );
   }
 

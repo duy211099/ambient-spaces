@@ -4,6 +4,7 @@ import { createRng } from "../rng.ts";
 import { LayerScheduler } from "../scheduler.ts";
 import type { StudioSettings } from "../settings.ts";
 import { toneClock } from "./engine.ts";
+import { DriftRig } from "./drift.ts";
 import { StudioGraph } from "./graph.ts";
 import { makeInstrument, noteLength } from "./instruments.ts";
 
@@ -11,6 +12,8 @@ import { makeInstrument, noteLength } from "./instruments.ts";
 export async function renderPeak(s: StudioSettings, seconds: number): Promise<number> {
   const buffer = await Tone.Offline(async ({ transport }) => {
     const graph = new StudioGraph(s);
+    const rig = new DriftRig(graph, createRng(s.seed).fork("drift"));
+    rig.apply(s);
     const clock = toneClock(transport);
     const mood = () => s.mood;
     for (const layer of s.layers) {
@@ -22,7 +25,7 @@ export async function renderPeak(s: StudioSettings, seconds: number): Promise<nu
         rng,
         (e) => instrument.triggerAttackRelease(e.note, noteLength(layer.instrument, rng), e.time, e.velocity),
         mood,
-        (l) => effectiveLayer(l, s.mood).density,
+        (l, t) => rig.densityAt(l.id, effectiveLayer(l, s.mood).density, t),
       );
       scheduler.start(layer);
     }

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DEFAULT_SETTINGS } from "../settings.ts";
 import {
-  addLayer, applyControl, CONTROL_DEFS, getPath, getWeight, GUIDE_IDS, layerNotes, MAX_LAYERS, MODE_GUIDES, readControl, removeLayer, setPath, setWeight,
+  addDrift, addLayer, applyControl, CONTROL_DEFS, getPath, getWeight, GUIDE_IDS, layerNotes, MAX_DRIFTS, MAX_LAYERS, MODE_GUIDES, readControl, removeDrift, removeLayer, setPath, setWeight, driftTargets, updateDrift,
 } from "./control-defs.ts";
 
 test("every control has a unique id and a guide id from the fixed list", () => {
@@ -89,4 +89,27 @@ test("setWeight is immutable and getWeight defaults to 1", () => {
   assert.equal(setWeight(DEFAULT_SETTINGS, "nope", "F4", 2), DEFAULT_SETTINGS);
   const def = { ...CONTROL_DEFS[0], id: "weight-F4", scope: "layer" as const, path: "weights.F4" };
   assert.equal(readControl(def, DEFAULT_SETTINGS, DEFAULT_SETTINGS.layers[1]), 1);
+});
+
+test("addDrift appends a drift on an unused target, with a fresh id, and caps out", () => {
+  const next = addDrift(DEFAULT_SETTINGS);
+  assert.equal(next.drifts.length, DEFAULT_SETTINGS.drifts.length + 1);
+  const added = next.drifts[next.drifts.length - 1];
+  assert.ok(!DEFAULT_SETTINGS.drifts.some((d) => d.id === added.id || d.target === added.target));
+  assert.ok(added.target in driftTargets(next));
+  assert.equal(DEFAULT_SETTINGS.drifts.length, 1);
+  let s = DEFAULT_SETTINGS;
+  for (let i = 0; i < MAX_DRIFTS + 3; i++) s = addDrift(s);
+  assert.equal(s.drifts.length, MAX_DRIFTS);
+  assert.equal(new Set(s.drifts.map((d) => d.id)).size, MAX_DRIFTS);
+});
+
+test("removeDrift removes it and frees drifts it modulated", () => {
+  let s = addDrift(DEFAULT_SETTINGS);
+  const id = s.drifts[1].id;
+  s = updateDrift(s, DEFAULT_SETTINGS.drifts[0].id, { modulatedBy: id });
+  const next = removeDrift(s, id);
+  assert.equal(next.drifts.length, 1);
+  assert.equal(next.drifts[0].modulatedBy, null);
+  assert.equal(s.drifts.length, 2);
 });

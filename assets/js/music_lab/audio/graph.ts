@@ -6,12 +6,12 @@ const RAMP = 0.3;
 const LAYER_FADE = 2;
 const DISPOSE_AFTER_MS = 8000;
 const DECAY_DEBOUNCE_MS = 250;
-const REVERB_WET = 0.5;
+export const REVERB_WET = 0.5;
 // Freeverb's one-pole damping goes unstable above ~sampleRate/pi, so keep it well under that.
 const FREEVERB_DAMPENING_HZ = 10000;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-const cutoffHz = (brightness: number) => 300 * Math.pow(2, 6 * brightness);
+export const cutoffHz = (brightness: number) => 300 * Math.pow(2, 6 * brightness);
 const layerDb = (db: number) => clamp(db, CAPS.layerDb[0], CAPS.layerDb[1]);
 const masterDb = (db: number) => clamp(db, CAPS.masterDb[0], CAPS.masterDb[1]);
 const feedback = (f: number) => clamp(f, 0, CAPS.delayFeedbackMax);
@@ -38,6 +38,8 @@ export class StudioGraph {
   private channels = new Map<string, Channel>();
   private mood: number;
   private decayTimer: ReturnType<typeof setTimeout> | undefined;
+  // Targets a drift LFO is connected to; their raw params must not be ramped (the ramp would add to the LFO).
+  private driven = new Set<DriftTarget>();
 
   constructor(s: StudioSettings) {
     this.mood = s.mood;
@@ -116,8 +118,8 @@ export class StudioGraph {
   applyLayer(l: LayerSettings, eff: EffectiveLayer): void {
     const ch = this.channels.get(l.id);
     if (!ch) return;
-    ch.filter.frequency.rampTo(cutoffHz(eff.brightness), RAMP);
-    ch.volume.volume.rampTo(layerDb(l.volumeDb), RAMP);
+    if (!this.driven.has(`layer.${l.id}.brightness`)) ch.filter.frequency.rampTo(cutoffHz(eff.brightness), RAMP);
+    if (!this.driven.has(`layer.${l.id}.volume`)) ch.volume.volume.rampTo(layerDb(l.volumeDb), RAMP);
     ch.send.gain.rampTo(clamp(eff.send, 0, 1), RAMP);
   }
 
@@ -131,12 +133,14 @@ export class StudioGraph {
 
   applyBus(b: BusSettings): void {
     this.delay.delayTime.rampTo(b.delayTime, RAMP);
-    this.delay.feedback.rampTo(feedback(b.delayFeedback), RAMP);
+    if (!this.driven.has("bus.delayFeedback")) this.delay.feedback.rampTo(feedback(b.delayFeedback), RAMP);
     this.delay.wet.rampTo(b.delayWet, RAMP);
-    this.damp.frequency.rampTo(b.dampeningHz, RAMP);
+    if (!this.driven.has("bus.dampening")) this.damp.frequency.rampTo(b.dampeningHz, RAMP);
     if (b.reverbKind !== this.reverbKind) {
       const old = this.reverb;
       this.reverbKind = b.reverbKind;
+      this.driven.delete("bus.reverbWet");
+      this.driven.delete("bus.reverbSize");
       clearTimeout(this.decayTimer);
       this.reverb = this.makeReverb(b);
       this.damp.disconnect(old);
@@ -144,7 +148,7 @@ export class StudioGraph {
       this.reverb.connect(this.master);
       setTimeout(() => old.dispose(), DISPOSE_AFTER_MS);
     } else if (this.reverb instanceof Tone.Freeverb) {
-      this.reverb.roomSize.rampTo(b.reverbSize, RAMP);
+      if (!this.driven.has("bus.reverbSize")) this.reverb.roomSize.rampTo(b.reverbSize, RAMP);
     } else {
       // Setting decay regenerates the impulse response, so settle on the last value instead of every input event.
       clearTimeout(this.decayTimer);
@@ -153,6 +157,11 @@ export class StudioGraph {
         if (this.reverb instanceof Tone.Reverb) this.reverb.decay = decay;
       }, DECAY_DEBOUNCE_MS);
     }
+  }
+
+  setDriven(target: DriftTarget, on: boolean): void {
+    if (on) this.driven.add(target);
+    else this.driven.delete(target);
   }
 
   /** The Tone param a drift target modulates, or null when it has none (density lives in the scheduler). */
