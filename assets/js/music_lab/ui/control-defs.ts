@@ -97,7 +97,8 @@ export function layerNotes(layer: LayerSettings): string[] {
 /** The value a control shows for a layer or for the whole settings. */
 export function readControl(def: ControlDef, s: StudioSettings, layer?: LayerSettings): unknown {
   const v = getPath(def.scope === "layer" ? layer : s, def.path);
-  return def.id === "chordChanges" ? (v as number) > 1 : v;
+  if (def.id === "chordChanges") return (v as number) > 1;
+  return v ?? (def.id.startsWith("weight-") ? 1 : undefined);
 }
 
 /** The first set in NOTE_SETS order that isn't `current`. */
@@ -110,7 +111,44 @@ export function applyLayerValue(layer: LayerSettings, def: ControlDef, value: un
     const first = layer.noteSetIds[0];
     return { ...layer, noteSetIds: value ? [first, nextAfter(first)] : [first] };
   }
+  if (def.id === "noteSet") {
+    const ids = [...layer.noteSetIds];
+    ids[0] = value as string;
+    if (ids.length > 1 && ids[1] === ids[0]) ids[1] = nextAfter(ids[0]);
+    return { ...layer, noteSetIds: ids };
+  }
   return setPath(layer, def.path, value);
+}
+
+export const MAX_LAYERS = 8;
+
+/** Appends a copy of the "notes" layer (or the first) with a fresh id and label. */
+export function addLayer(s: StudioSettings): StudioSettings {
+  if (s.layers.length >= MAX_LAYERS) return s;
+  const base = s.layers.find((l) => l.id === "notes") ?? s.layers[0];
+  let n = s.layers.length + 1;
+  while (s.layers.some((l) => l.id === `layer${n}`)) n++;
+  const copy: LayerSettings = { ...structuredClone(base), id: `layer${n}`, label: `Layer ${n}` };
+  return { ...s, layers: [...s.layers, copy] };
+}
+
+export function removeLayer(s: StudioSettings, id: string): StudioSettings {
+  if (s.layers.length <= 1) return s;
+  return { ...s, layers: s.layers.filter((l) => l.id !== id) };
+}
+
+export const weightDef = (note: string): ControlDef => ({
+  id: `weight-${note}`, label: note, kind: "range", scope: "layer", path: `weights.${note}`,
+  min: CAPS.weight[0], max: CAPS.weight[1], step: 0.05, guide: "weights",
+});
+
+export function getWeight(layer: LayerSettings, note: string): number {
+  return layer.weights[note] ?? 1;
+}
+
+export function setWeight(s: StudioSettings, layerId: string, note: string, value: number): StudioSettings {
+  const idx = s.layers.findIndex((l) => l.id === layerId);
+  return idx < 0 ? s : setPath(s, `layers.${idx}.weights.${note}`, value);
 }
 
 export function applyControl(s: StudioSettings, def: ControlDef, value: unknown, layerIndex = 0): StudioSettings {

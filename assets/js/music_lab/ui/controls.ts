@@ -1,6 +1,7 @@
-import { CAPS, type LayerSettings, type StudioSettings } from "../settings.ts";
+import type { LayerSettings, StudioSettings } from "../settings.ts";
 import {
-  applyControl, CONTROL_DEFS, layerNotes, MODE_GUIDES, readControl, setPath, type ControlDef,
+  addLayer, applyControl, CONTROL_DEFS, layerNotes, MAX_LAYERS, MODE_GUIDES, readControl, removeLayer, setWeight,
+  weightDef, type ControlDef,
 } from "./control-defs.ts";
 
 export interface Controls {
@@ -29,6 +30,7 @@ export function renderControls(root: HTMLElement, initial: StudioSettings, onCha
   let current = initial;
   let bound: Bound[] = [];
   let structureKey = "";
+  let focusAfterRender: { kind: "layer"; id: string } | { kind: "add" } | null = null;
   const weightHosts = new Map<string, { host: HTMLElement; key: string }>();
 
   const emit = (next: StudioSettings) => {
@@ -95,6 +97,10 @@ export function renderControls(root: HTMLElement, initial: StudioSettings, onCha
       value = Number(input.value);
       if (!Number.isFinite(value as number) || input.value === "") return;
     }
+    if (def.kind === "number") {
+      value = Math.floor(value as number);
+      input.value = String(Math.min(def.max ?? Infinity, Math.max(def.min ?? -Infinity, value as number)));
+    }
     if (layerId === null) return emit(applyControl(current, def, value));
     const idx = current.layers.findIndex((l) => l.id === layerId);
     if (idx >= 0) emit(applyControl(current, def, value, idx));
@@ -113,19 +119,10 @@ export function renderControls(root: HTMLElement, initial: StudioSettings, onCha
       bound = bound.filter((x) => x !== b);
     }
     host.replaceChildren(el("summary", {}, "Note weights"));
-    const weightDef = (note: string): ControlDef => ({
-      id: `weight-${note}`, label: note, kind: "range", scope: "layer", path: `weights.${note}`,
-      min: CAPS.weight[0], max: CAPS.weight[1], step: 0.05, guide: "weights",
-    });
     for (const note of layerNotes(layer)) {
       const def = weightDef(note);
       const { row, b } = build(def, layer.id, note, def.id);
-      b.input.addEventListener("input", () => {
-        const idx = current.layers.findIndex((l) => l.id === layer.id);
-        if (idx < 0) return;
-        const next = setPath(current, `layers.${idx}.weights.${note}`, Number(b.input.value));
-        emit(next);
-      });
+      b.input.addEventListener("input", () => emit(setWeight(current, layer.id, note, Number(b.input.value))));
       bound.push(b);
       host.append(row);
     }
@@ -136,20 +133,24 @@ export function renderControls(root: HTMLElement, initial: StudioSettings, onCha
     const h2 = el("h2");
     h2.append(el("span", {}, layer.label));
     const actions = el("span", { class: "panel-actions" });
-    const add = el("button", { type: "button", "data-add-layer": layer.id, title: "Add a layer like Notes" }, "+ Layer");
-    const remove = el("button", { type: "button", "data-remove-layer": layer.id, title: "Remove this layer" }, "Remove");
+    const add = el("button", { type: "button", "data-add-layer": layer.id, "aria-label": `Add a layer like Notes (after ${layer.label})`, title: "Add a layer like Notes" }, "+ Layer");
+    const remove = el("button", { type: "button", "data-remove-layer": layer.id, "aria-label": `Remove ${layer.label} layer`, title: "Remove this layer" }, "Remove");
+    const canRemove = current.layers.length > 1;
+    remove.disabled = !canRemove;
+    remove.setAttribute("aria-disabled", String(!canRemove));
+    const canAdd = current.layers.length < MAX_LAYERS;
+    add.disabled = !canAdd;
+    add.setAttribute("aria-disabled", String(!canAdd));
     add.addEventListener("click", () => {
-      const base = current.layers.find((l) => l.id === "notes") ?? current.layers[0];
-      let n = current.layers.length + 1;
-      while (current.layers.some((l) => l.id === `layer${n}`)) n++;
-      const copy: LayerSettings = { ...structuredClone(base), id: `layer${n}`, label: `Layer ${n}` };
-      emit({ ...current, layers: [...current.layers, copy] });
-      renderAll();
+      const before = current.layers.length;
+      emit(addLayer(current));
+      if (current.layers.length > before) focusAfterRender = { kind: "layer", id: current.layers[current.layers.length - 1].id };
+      if (focusAfterRender) restoreFocus();
     });
     remove.addEventListener("click", () => {
-      if (current.layers.length <= 1) return;
-      emit({ ...current, layers: current.layers.filter((l) => l.id !== layer.id) });
-      renderAll();
+      emit(removeLayer(current, layer.id));
+      focusAfterRender = { kind: "add" };
+      restoreFocus();
     });
     actions.append(add, remove);
     h2.append(actions);
@@ -175,6 +176,16 @@ export function renderControls(root: HTMLElement, initial: StudioSettings, onCha
     for (const layer of current.layers) root.append(renderLayer(layer));
     structureKey = current.layers.map((l) => l.id).join("|");
     for (const b of bound) show(b, current);
+  }
+
+  function restoreFocus(): void {
+    const f = focusAfterRender;
+    focusAfterRender = null;
+    if (!f) return;
+    const target = f.kind === "layer"
+      ? root.querySelector<HTMLElement>(`section[data-layer="${f.id}"] .ctl select, section[data-layer="${f.id}"] .ctl input`)
+      : root.querySelector<HTMLElement>("button[data-add-layer]:not(:disabled)");
+    target?.focus();
   }
 
   renderAll();

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DEFAULT_SETTINGS } from "../settings.ts";
 import {
-  applyControl, CONTROL_DEFS, getPath, GUIDE_IDS, layerNotes, MODE_GUIDES, readControl, setPath,
+  addLayer, applyControl, CONTROL_DEFS, getPath, getWeight, GUIDE_IDS, layerNotes, MAX_LAYERS, MODE_GUIDES, readControl, removeLayer, setPath, setWeight,
 } from "./control-defs.ts";
 
 test("every control has a unique id and a guide id from the fixed list", () => {
@@ -53,4 +53,40 @@ test("noteSet replaces only the first set; layerNotes unions and dedupes", () =>
   assert.equal(new Set(notes).size, notes.length);
   assert.ok(notes.includes("Ab5") && notes.includes("Db4"));
   assert.equal(notes.indexOf("F4"), 0);
+});
+
+test("picking the second chord set as the first never duplicates", () => {
+  const def = CONTROL_DEFS.find((d) => d.id === "noteSet")!;
+  const next = applyControl(DEFAULT_SETTINGS, def, "airportsAlt", 1);
+  const ids = next.layers[1].noteSetIds;
+  assert.equal(ids[0], "airportsAlt");
+  assert.notEqual(ids[1], "airportsAlt");
+  assert.equal(ids.length, 2);
+});
+
+test("addLayer copies notes with a unique id, capped at MAX_LAYERS", () => {
+  let s = addLayer(DEFAULT_SETTINGS);
+  assert.equal(s.layers.length, 4);
+  assert.equal(s.layers[3].id, "layer4");
+  assert.deepEqual(s.layers[3].noteSetIds, DEFAULT_SETTINGS.layers[1].noteSetIds);
+  assert.equal(DEFAULT_SETTINGS.layers.length, 3);
+  while (s.layers.length < MAX_LAYERS) s = addLayer(s);
+  assert.equal(new Set(s.layers.map((l) => l.id)).size, MAX_LAYERS);
+  assert.equal(addLayer(s), s);
+});
+
+test("removeLayer drops one layer but never the last", () => {
+  const s = removeLayer(DEFAULT_SETTINGS, "notes");
+  assert.deepEqual(s.layers.map((l) => l.id), ["drone", "bells"]);
+  const one = { ...DEFAULT_SETTINGS, layers: [DEFAULT_SETTINGS.layers[0]] };
+  assert.equal(removeLayer(one, "drone"), one);
+});
+
+test("setWeight is immutable and getWeight defaults to 1", () => {
+  const s = setWeight(DEFAULT_SETTINGS, "notes", "F4", 2);
+  assert.equal(getWeight(s.layers[1], "F4"), 2);
+  assert.equal(getWeight(DEFAULT_SETTINGS.layers[1], "F4"), 1);
+  assert.equal(setWeight(DEFAULT_SETTINGS, "nope", "F4", 2), DEFAULT_SETTINGS);
+  const def = { ...CONTROL_DEFS[0], id: "weight-F4", scope: "layer" as const, path: "weights.F4" };
+  assert.equal(readControl(def, DEFAULT_SETTINGS, DEFAULT_SETTINGS.layers[1]), 1);
 });

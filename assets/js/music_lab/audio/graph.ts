@@ -5,6 +5,7 @@ import { CAPS, type BusSettings, type DriftTarget, type LayerSettings, type Stud
 const RAMP = 0.3;
 const LAYER_FADE = 2;
 const DISPOSE_AFTER_MS = 8000;
+const DECAY_DEBOUNCE_MS = 250;
 const REVERB_WET = 0.5;
 // Freeverb's one-pole damping goes unstable above ~sampleRate/pi, so keep it well under that.
 const FREEVERB_DAMPENING_HZ = 10000;
@@ -36,6 +37,7 @@ export class StudioGraph {
   private reverbKind: BusSettings["reverbKind"];
   private channels = new Map<string, Channel>();
   private mood: number;
+  private decayTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(s: StudioSettings) {
     this.mood = s.mood;
@@ -135,6 +137,7 @@ export class StudioGraph {
     if (b.reverbKind !== this.reverbKind) {
       const old = this.reverb;
       this.reverbKind = b.reverbKind;
+      clearTimeout(this.decayTimer);
       this.reverb = this.makeReverb(b);
       this.damp.disconnect(old);
       this.damp.connect(this.reverb);
@@ -143,7 +146,12 @@ export class StudioGraph {
     } else if (this.reverb instanceof Tone.Freeverb) {
       this.reverb.roomSize.rampTo(b.reverbSize, RAMP);
     } else {
-      this.reverb.decay = convolverDecay(b.reverbSize);
+      // Setting decay regenerates the impulse response, so settle on the last value instead of every input event.
+      clearTimeout(this.decayTimer);
+      const decay = convolverDecay(b.reverbSize);
+      this.decayTimer = setTimeout(() => {
+        if (this.reverb instanceof Tone.Reverb) this.reverb.decay = decay;
+      }, DECAY_DEBOUNCE_MS);
     }
   }
 
@@ -169,6 +177,7 @@ export class StudioGraph {
   }
 
   dispose(): void {
+    clearTimeout(this.decayTimer);
     for (const id of [...this.channels.keys()]) this.removeLayer(id, true);
     this.delay.dispose();
     this.damp.dispose();
