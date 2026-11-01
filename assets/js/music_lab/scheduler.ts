@@ -21,6 +21,7 @@ export class LayerScheduler {
   private layer: LayerSettings | null = null;
   private activeSet = 0;
   private generation = 0;
+  private noteGen = 0;
   private noteTimers = new Set<number>();
   private chordTimer: number | null = null;
 
@@ -55,7 +56,7 @@ export class LayerScheduler {
     this.clearChordTimer();
     if (this.activeSet >= layer.noteSetIds.length) this.activeSet = 0;
     this.scheduleNotes(false);
-    this.scheduleChordChange(this.generation);
+    this.scheduleChordChange(this.generation, this.clock.now());
   }
 
   update(layer: LayerSettings): void {
@@ -73,16 +74,22 @@ export class LayerScheduler {
   }
 
   activeNoteSet(): string {
-    return this.layer ? this.layer.noteSetIds[this.activeSet] : "";
+    return this.layer ? this.layer.noteSetIds[this.clampedSet(this.layer)] : "";
+  }
+
+  private clampedSet(layer: LayerSettings): number {
+    if (this.activeSet >= layer.noteSetIds.length) this.activeSet = 0;
+    return this.activeSet;
   }
 
   private notes(): string[] {
-    return this.layer ? NOTE_SETS[this.layer.noteSetIds[this.activeSet]]?.notes ?? [] : [];
+    return this.layer ? NOTE_SETS[this.layer.noteSetIds[this.clampedSet(this.layer)]]?.notes ?? [] : [];
   }
 
   private clearNoteTimers(): void {
     for (const id of this.noteTimers) this.clock.clear(id);
     this.noteTimers.clear();
+    this.noteGen++;
   }
 
   private clearChordTimer(): void {
@@ -91,12 +98,13 @@ export class LayerScheduler {
   }
 
   // Schedules one self-rescheduling timer chain per note. `staggered` is true after a chord change.
-  private scheduleNotes(staggered: boolean): void {
+  private scheduleNotes(staggered: boolean, at0 = this.clock.now()): void {
     const layer = this.layer;
     if (!layer) return;
     const notes = this.notes();
-    const now = this.clock.now();
+    const now = at0;
     const gen = this.generation;
+    const ng = this.noteGen;
     const weightOf = (note: string, l: LayerSettings) => l.weights[note] ?? 1;
 
     let nextAt: (i: number, time: number) => number;
@@ -130,7 +138,7 @@ export class LayerScheduler {
     const arm = (i: number, at: number) => {
       const id = this.clock.scheduleOnce((time) => {
         this.noteTimers.delete(id);
-        if (gen !== this.generation) return;
+        if (gen !== this.generation || ng !== this.noteGen) return;
         this.fire(notes[i], time);
         arm(i, nextAt(i, time));
       }, at);
@@ -146,18 +154,19 @@ export class LayerScheduler {
     this.onNote({ layerId: layer.id, note, time, velocity: this.rng.between(lo, hi) });
   }
 
-  private scheduleChordChange(gen: number): void {
+  private scheduleChordChange(gen: number, from: number): void {
     const layer = this.layer;
     if (!layer || layer.noteSetIds.length < 2) return;
     const [lo, hi] = layer.changeEverySec;
-    const id = this.clock.scheduleOnce(() => {
+    const at = from + this.rng.between(lo, hi);
+    const id = this.clock.scheduleOnce((time) => {
       this.chordTimer = null;
       if (gen !== this.generation || !this.layer) return;
       this.activeSet = (this.activeSet + 1) % this.layer.noteSetIds.length;
       this.clearNoteTimers();
-      this.scheduleNotes(true);
-      this.scheduleChordChange(gen);
-    }, this.clock.now() + this.rng.between(lo, hi));
+      this.scheduleNotes(true, time);
+      this.scheduleChordChange(gen, time);
+    }, at);
     this.chordTimer = id;
   }
 }

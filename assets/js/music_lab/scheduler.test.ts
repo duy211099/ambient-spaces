@@ -18,7 +18,11 @@ class FakeClock implements Clock {
     this.queue.sort((a, b) => a.at - b.at || a.id - b.id);
     return id;
   }
-  clear(id: number) { this.queue = this.queue.filter((e) => e.id !== id); }
+  cleared: ((time: number) => void)[] = [];
+  clear(id: number) {
+    for (const e of this.queue) if (e.id === id) this.cleared.push(e.cb);
+    this.queue = this.queue.filter((e) => e.id !== id);
+  }
   pending() { return this.queue.length; }
   advance(seconds: number) {
     const end = this.t + seconds;
@@ -134,10 +138,9 @@ test("start twice does not stack timers", () => {
 test("simulated hour keeps pending events bounded", () => {
   const { clock, s } = setup();
   s.start(chordLayer);
-  const largest = Math.max(...chordLayer.noteSetIds.map((id) => NOTE_SETS[id].notes.length));
   for (let i = 0; i < 60; i++) {
     clock.advance(60);
-    assert.ok(clock.pending() <= largest + 1);
+    assert.equal(clock.pending(), NOTE_SETS[s.activeNoteSet()].notes.length + 1);
   }
 });
 
@@ -163,4 +166,33 @@ test("stop clears everything", () => {
   s.stop();
   assert.equal(clock.pending(), 0);
   assert.equal(s.pendingCount(), 0);
+});
+
+test("reconfigure 50 times on a chord layer keeps set size + 1 timers", () => {
+  const { clock, s } = setup();
+  s.start(chordLayer);
+  for (let i = 0; i < 50; i++) s.reconfigure(chordLayer);
+  assert.equal(clock.pending(), NOTE_SETS[s.activeNoteSet()].notes.length + 1);
+});
+
+test("a cleared note callback that still fires after a chord change does nothing", () => {
+  const { clock, events, s } = setup();
+  s.start(chordLayer);
+  clock.advance(chordLayer.changeEverySec[1] + 0.001);
+  assert.equal(s.activeNoteSet(), "airportsAlt");
+  assert.ok(clock.cleared.length > 0);
+  const before = events.length;
+  const pending = clock.pending();
+  for (const cb of clock.cleared) cb(clock.now());
+  assert.equal(events.length, before);
+  assert.equal(clock.pending(), pending);
+});
+
+test("update shrinking noteSetIds does not break the active set", () => {
+  const { clock, s } = setup();
+  s.start(chordLayer);
+  clock.advance(chordLayer.changeEverySec[1] + 0.001);
+  s.update({ ...chordLayer, noteSetIds: ["airports"] });
+  assert.equal(s.activeNoteSet(), "airports");
+  clock.advance(600);
 });
