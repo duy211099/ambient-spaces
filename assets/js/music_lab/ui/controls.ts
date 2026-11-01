@@ -129,7 +129,7 @@ export function renderControls(root: HTMLElement, initial: StudioSettings, onCha
   }
 
   function renderLayer(layer: LayerSettings): HTMLElement {
-    const panel = el("section", { class: "panel", "data-layer": layer.id });
+    const panel = el("section", { class: "studio-panel", "data-layer": layer.id, "aria-label": `${layer.label} layer` });
     const h2 = el("h2");
     h2.append(el("span", {}, layer.label));
     const actions = el("span", { class: "panel-actions" });
@@ -168,13 +168,14 @@ export function renderControls(root: HTMLElement, initial: StudioSettings, onCha
     weightHosts.clear();
     root.replaceChildren();
     for (const scope of ["global", "bus"] as const) {
-      const panel = el("section", { class: "panel" });
-      panel.append(el("h2", {}, scope === "global" ? "Overall" : "Space and echo"));
+      const headingId = `panel-${scope}`;
+      const panel = el("section", { class: "studio-panel", "aria-labelledby": headingId });
+      panel.append(el("h2", { id: headingId }, scope === "global" ? "Overall" : "Space and echo"));
       for (const def of CONTROL_DEFS.filter((d) => d.scope === scope)) bind(def, null, panel);
       root.append(panel);
     }
     for (const layer of current.layers) root.append(renderLayer(layer));
-    driftHost = el("section", { class: "panel", "data-drifts": "" });
+    driftHost = el("section", { class: "studio-panel", "data-drifts": "", "aria-labelledby": "panel-drifts" });
     root.append(driftHost);
     renderDrifts();
     structureKey = current.layers.map((l) => l.id).join("|");
@@ -183,11 +184,13 @@ export function renderControls(root: HTMLElement, initial: StudioSettings, onCha
 
   function renderDriftRow(d: DriftSettings): HTMLElement {
     const row = el("div", { class: "ctl drift", "data-drift": d.id });
-    const field = (labelText: string, input: HTMLElement, guide?: string): HTMLElement => {
-      const wrap = el("div", { class: "drift-field" });
-      const label = el("label", { for: input.id }, labelText);
-      wrap.append(label, input);
-      if (guide) wrap.append(el("button", { type: "button", class: "info", "data-guide": guide, "aria-label": `About ${labelText}` }, "ⓘ"));
+    const field = (labelText: string, input: HTMLElement, opts: { guide?: string; out?: HTMLElement } = {}): HTMLElement => {
+      const wrap = el("div", { class: input instanceof HTMLInputElement && input.type === "checkbox" ? "drift-field drift-field--toggle" : "drift-field" });
+      const head = el("div", { class: "ctl-head" });
+      head.append(el("label", { for: input.id }, labelText));
+      if (opts.out) head.append(opts.out);
+      if (opts.guide) head.append(el("button", { type: "button", class: "info", "data-guide": opts.guide, "aria-label": `About ${labelText}` }, "ⓘ"));
+      wrap.append(head, input);
       return wrap;
     };
     const mk = (kind: string) => `ctl-${++uid}-${kind}`;
@@ -217,12 +220,14 @@ export function renderControls(root: HTMLElement, initial: StudioSettings, onCha
     const remove = el("button", { type: "button", "data-remove-drift": d.id, "aria-label": `Remove drift on ${driftLabel(d)}` }, "Remove");
     remove.addEventListener("click", () => emit(removeDrift(current, d.id)));
 
-    const periodField = field("Period (s)", period);
-    periodField.append(periodOut);
-    const depthField = field("Depth", depth);
-    depthField.append(depthOut);
-    const toggle = field("On", enabled);
-    row.append(field("Drift on", target, "drift"), periodField, depthField, toggle, field("Modulated by", modBy, "drift-on-drift"), remove);
+    row.append(
+      field("Drift on", target, { guide: "drift" }),
+      field("Period (s)", period, { out: periodOut }),
+      field("Depth", depth, { out: depthOut }),
+      field("Modulated by", modBy, { guide: "drift-on-drift" }),
+      field("On", enabled),
+      remove,
+    );
     return row;
   }
 
@@ -258,7 +263,7 @@ export function renderControls(root: HTMLElement, initial: StudioSettings, onCha
     if (!driftHost) return;
     driftStructure = driftKey(current);
     const head = el("h2");
-    head.append(el("span", {}, "Slow drift"));
+    head.append(el("span", { id: "panel-drifts" }, "Slow drift"));
     const actions = el("span", { class: "panel-actions" });
     const add = el("button", { type: "button", "data-add-drift": "", title: "Add a slow drift" }, "+ Drift");
     add.disabled = current.drifts.length >= MAX_DRIFTS;

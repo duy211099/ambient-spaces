@@ -7,6 +7,7 @@ export const NOTE_SETS: Record<string, { label: string; notes: string[] }> = {
   droneNight: { label: "Low drone, night (A, E)", notes: ["A2", "E3"] },
   bellsHigh: { label: "High bells", notes: ["C6", "Eb6", "F6", "Ab6"] },
   airportsAlt: { label: "Music for Airports, lower", notes: ["Db4", "F4", "Ab4", "C5", "Eb5", "F5"] },
+  single: { label: "One note", notes: ["F4"] },
 };
 
 // Lesson 6: loop lengths (seconds) and start offsets for the seven Eno voices.

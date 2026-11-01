@@ -9,6 +9,8 @@ import { SettingsStore } from "./store.ts";
 import { Ripples } from "./visual/ripples.ts";
 import { renderControls } from "./ui/controls.ts";
 import { extensionFor, StudioRecorder } from "./audio/recorder.ts";
+import { openGuide } from "./ui/guide-panel.ts";
+import { runTour } from "./ui/tour.ts";
 
 const LOG_LINES = 50;
 const NOTE_LOG_MAX = 500;
@@ -200,6 +202,12 @@ export function bootMusicStudio(): void {
     }
   }
 
+  root.addEventListener("click", (e) => {
+    const info = (e.target as Element | null)?.closest<HTMLElement>("[data-guide]");
+    const id = info?.dataset.guide;
+    if (id) openGuide(id);
+  });
+  q("[data-tour]")?.addEventListener("click", () => runTour(store, () => void play()));
   q("[data-play]")?.addEventListener("click", () => void play());
   q("[data-stop]")?.addEventListener("click", stop);
   q("[data-reshuffle]")?.addEventListener("click", () => change({ ...store.get(), seed: randomSeed() }));

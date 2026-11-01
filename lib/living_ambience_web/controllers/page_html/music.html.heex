@@ -1,6 +1,7 @@
 <style>
   body { margin: 0; background: #17120f; color: #eadfd3; font: 15px/1.5 system-ui, sans-serif; }
-  #music-studio { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; }
+  #music-studio { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  #music-studio:has(#guide-panel:not([hidden])) { grid-template-columns: minmax(0, 1fr) 300px; }
   #music-studio h1 { font-size: 22px; margin: 0 0 4px; }
   #music-studio .sub { color: #a8998a; margin: 0 0 20px; }
   .studio-main { min-width: 0; }
@@ -9,10 +10,10 @@
   #music-studio button:hover { background: #4a3628; }
   .studio-status { color: #d9a66b; margin-left: 8px; }
   #studio-visual { display: block; width: 100%; height: 220px; background: #110d0b; border: 1px solid #3a2a20; border-radius: 12px; margin-bottom: 16px; }
-  .panel { display: grid; grid-template-columns: 1fr; gap: 12px; background: #211913; border: 1px solid #3a2a20; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-  .panel h2 { font-size: 15px; margin: 0; color: #d9a66b; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .panel h2 .panel-actions { display: flex; gap: 6px; }
-  #music-studio .panel h2 button { padding: 2px 10px; font-size: 13px; }
+  .studio-panel { display: grid; grid-template-columns: 1fr; gap: 12px; background: #211913; border: 1px solid #3a2a20; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .studio-panel h2 { font-size: 15px; margin: 0; color: #d9a66b; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .studio-panel h2 .panel-actions { display: flex; gap: 6px; }
+  #music-studio .studio-panel h2 button { padding: 2px 10px; font-size: 13px; }
   .ctl { display: grid; gap: 4px; }
   .ctl-head { font-size: 13px; color: #a8998a; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .ctl-head label { flex: 1; }
@@ -28,12 +29,32 @@
   #music-studio button.info { padding: 0 7px; border-radius: 50%; font-size: 12px; line-height: 20px; background: transparent; color: #d9a66b; }
   #guide-panel { position: sticky; top: 16px; align-self: start; background: #211913; border: 1px solid #3a2a20; border-radius: 12px; padding: 16px; max-height: calc(100vh - 32px); overflow: auto; }
   #guide-panel[hidden] { display: none; }
+  .guide-head { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+  #guide-panel h2 { font-size: 16px; margin: 0; color: #d9a66b; }
+  #music-studio .guide-close { padding: 0 9px; font-size: 18px; line-height: 26px; background: transparent; }
+  .guide-body { margin: 10px 0; }
+  .guide-source { margin: 0 0 4px; font-size: 12px; color: #a8998a; }
+  .tour-nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-top: 1px solid #3a2a20; padding-top: 12px; margin-top: 10px; }
+  .tour-count { flex: 1 1 100%; font-size: 12px; color: #a8998a; }
+  .tour-ask { flex: 1 1 100%; margin: 0; font-size: 13px; }
+  .tour-focus { outline: 2px solid #d9a66b; outline-offset: 4px; border-radius: 6px; scroll-margin-top: 96px; }
+  .drift { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 14px; align-items: end; border-top: 1px solid #3a2a20; padding-top: 12px; }
+  .drift-field { display: grid; gap: 4px; min-width: 0; }
+  .drift-field select, .drift-field input[type=range] { width: 100%; box-sizing: border-box; }
+  .drift-field select { background: #17120f; color: #eadfd3; border: 1px solid #5a4334; border-radius: 6px; padding: 6px; font: inherit; }
+  .drift-field--toggle { display: flex; flex-direction: row-reverse; justify-content: flex-end; align-items: center; gap: 8px; }
+  .drift-field--toggle .ctl-head { flex: 0 1 auto; }
+  #music-studio .drift > button { justify-self: start; padding: 4px 12px; font-size: 13px; }
   .log-box { font: 12px/1.6 ui-monospace, monospace; color: #a8998a; background: #110d0b; border-radius: 8px; padding: 8px 12px; }
   .log-box summary { cursor: pointer; }
   .log-lines { max-height: 220px; overflow: auto; white-space: pre; }
   @media (max-width: 480px) { #studio-visual { height: 160px; } }
   @media (max-width: 719px) {
-    #music-studio { grid-template-columns: 1fr; }
+    #music-studio, #music-studio:has(#guide-panel:not([hidden])) { grid-template-columns: minmax(0, 1fr); }
+    #music-studio:has(#guide-panel:not([hidden])) { padding-bottom: 50vh; }
+    .studio-row--transport { position: sticky; top: 0; z-index: 11; background: #17120f; padding: 8px 0; margin-top: -8px; }
+    .tour-focus { scroll-margin-top: 170px; }
+    .tour-nav { position: sticky; bottom: -16px; background: #211913; padding-bottom: 16px; margin-bottom: -16px; }
     #guide-panel { position: fixed; left: 0; right: 0; bottom: 0; top: auto; max-height: 45vh; border-radius: 16px 16px 0 0; z-index: 10; }
   }
 </style>
@@ -42,12 +63,13 @@
     <h1>Music studio</h1>
     <p class="sub">Layered generative music. Each note is its own voice on its own timer.</p>
 
-    <div class="studio-row">
+    <div class="studio-row studio-row--transport" role="group" aria-label="Transport">
       <button type="button" data-play>▶ Play</button>
       <button type="button" data-stop>■ Stop</button>
       <button type="button" data-reshuffle>↻ New seed</button>
       <button type="button" data-copy-link>Copy link</button>
       <button type="button" data-record disabled>● Record</button>
+      <button type="button" data-tour>Take the tour</button>
       <span class="studio-status" data-status>stopped</span>
       <span class="studio-status" data-copy-status role="status"></span>
       <input type="text" readonly hidden data-link-input aria-label="Share link" class="link-input" />
@@ -60,5 +82,5 @@
       <div class="log-lines" data-log-lines></div>
     </details>
   </div>
-  <aside id="guide-panel" hidden></aside>
+  <aside id="guide-panel" aria-label="Guide" hidden></aside>
 </main>

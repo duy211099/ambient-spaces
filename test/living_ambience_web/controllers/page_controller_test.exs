@@ -16,6 +16,7 @@ defmodule LivingAmbienceWeb.PageControllerTest do
     assert html =~ ~s(id="music-studio")
     assert html =~ ~s(id="studio-visual")
     assert html =~ ~s(id="guide-panel")
+    assert html =~ "Take the tour"
     assert html =~ "/assets/app.js"
   end
 end
