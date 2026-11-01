@@ -19,6 +19,7 @@
   .ctl-head em { font-style: normal; color: #eadfd3; }
   .ctl--toggle { display: flex; align-items: center; gap: 8px; }
   .ctl--toggle label { flex: 1; font-size: 13px; color: #a8998a; }
+  .link-input { flex: 1 1 100%; background: #17120f; color: #eadfd3; border: 1px solid #5a4334; border-radius: 6px; padding: 6px; font: 12px ui-monospace, monospace; }
   #music-studio button:disabled { opacity: 0.4; cursor: not-allowed; }
   .ctl select, .ctl input[type=range], .ctl input[type=number] { width: 100%; box-sizing: border-box; }
   .ctl select, .ctl input[type=number] { background: #17120f; color: #eadfd3; border: 1px solid #5a4334; border-radius: 6px; padding: 6px; font: inherit; }
@@ -43,8 +44,12 @@
     <div class="studio-row">
       <button type="button" data-play>▶ Play</button>
       <button type="button" data-stop>■ Stop</button>
-      <button type="button" data-reshuffle>↻ Reshuffle</button>
+      <button type="button" data-reshuffle>↻ New seed</button>
+      <button type="button" data-copy-link>Copy link</button>
+      <button type="button" data-record disabled>● Record</button>
       <span class="studio-status" data-status>stopped</span>
+      <span class="studio-status" data-copy-status role="status"></span>
+      <input type="text" readonly hidden data-link-input aria-label="Share link" class="link-input" />
     </div>
 
     <canvas id="studio-visual" width="800" height="160"></canvas>
