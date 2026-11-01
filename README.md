@@ -1,8 +1,9 @@
 # Living Ambience
 
 A calm ambient-sound app. The first scene is "Cafe by a rainy window". It is
-drawn in Canvas 2D from code and sounds come from Web Audio. There are no npm
-runtime dependencies and no third-party audio.
+drawn in Canvas 2D from code inside a Phaser game, and sounds come from Web
+Audio. Phaser is the only npm runtime dependency, and there is no third-party
+audio.
 
 Four layers (rain, crowd chatter, espresso machine, cafe music) each have a
 slider and a visual that is fully absent at volume 0. A window toggle muffles

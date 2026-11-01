@@ -1,11 +1,14 @@
 {
   "name": "living-ambience-assets",
   "private": true,
-  "description": "Front-end sources for Living Ambience. No runtime dependencies; TypeScript is only used for type checking (esbuild does the bundling).",
+  "description": "Front-end sources for Living Ambience. Phaser is the only runtime dependency; TypeScript is only used for type checking (esbuild does the bundling).",
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "phaser": "^4.2.1"
   }
 }
