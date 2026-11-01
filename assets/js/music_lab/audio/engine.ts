@@ -182,6 +182,8 @@ export class StudioEngine {
   private play(e: NoteEvent): void {
     const voice = this.voices.get(e.layerId);
     if (!voice || !this.settings) return;
+    // A sampler swapped in while playing has no buffers yet; its next note plays once they arrive.
+    if (voice.instrument instanceof Tone.Sampler && !voice.instrument.loaded) return;
     const audioTime = this.t0 + e.time;
     voice.instrument.triggerAttackRelease(e.note, noteLength(voice.instrumentId, voice.rng), audioTime, e.velocity);
     const layerIndex = this.settings.layers.findIndex((l) => l.id === e.layerId);
