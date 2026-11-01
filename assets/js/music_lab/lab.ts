@@ -1,6 +1,8 @@
 // THROWAWAY SPIKE: a playground for the generative music ideas from
 // knowledge/building-generative-music-systems. Not wired into the scenes.
 import * as Tone from "tone";
+import { renderPeak } from "./audio/offline.ts";
+import { extremeSettings } from "./settings.ts";
 
 type Mode = "random" | "loops";
 type InstrumentId = "piano" | "pad" | "bell";
@@ -281,5 +283,6 @@ export function bootMusicLab(): void {
   });
 
   renderVoices(PRESETS[settings.preset].notes);
+  Object.assign(window, { __musicStudio: { renderPeak, extremeSettings } });
   Object.assign(window, { __musicLab: { settings, transport: () => Tone.getTransport().state } });
 }
