@@ -19,6 +19,14 @@ interface Active {
   lfo: Tone.LFO;
   mod: Tone.LFO | null;
   analyser: Tone.Analyser;
+  centred: boolean; // built mid-play: its range stays centred on the base instead of using the full legal span
+}
+
+/** The LFO's raw min and max. A centred drift narrows to the span that fits symmetrically around the live base. */
+function sweepRange(p: Tone.Param<any>, target: DriftTarget, min: number, max: number, base: number, centred: boolean): [number, number] {
+  const lo = rawOf(p, min);
+  const hi = rawOf(p, max);
+  return centred ? centredRange(lo, hi, rawOf(p, target.endsWith(".brightness") ? cutoffHz(base) : base)) : [lo, hi]; // gain sweeps linearly, not in dB
 }
 
 interface DensityDrift {
@@ -118,7 +126,7 @@ export class DriftRig {
       if (base === null) continue;
       const [min, max] = lfoRange(d.target, base, d.depth);
       const existing = this.active.get(id);
-      if (existing) this.retune(existing, d, mod, min, max);
+      if (existing) this.retune(existing, d, mod, min, max, base);
       else this.active.set(id, this.build(d, param, mod, min, max, base));
     }
     this.started = true;
@@ -172,17 +180,12 @@ export class DriftRig {
     const p = param as Tone.Param<any>;
     // The LFO works in the raw signal domain and connects through its output, so Tone never re-converts its range
     // (which it does 100 ms late, leaving raw dB on a gain param for the first render quanta).
-    let lo = rawOf(p, min);
-    let hi = rawOf(p, max);
-    let phase = this.phaseDeg(d.id);
-    if (this.started) {
-      // Enabled mid-play: centre the sweep on the live value at phase 0, so nothing steps. Tone's running oscillator
-      // does not honour a non-zero phase at its first sample (measured: it lands at twice the offset), so the
-      // range narrows to the span that fits symmetrically instead of starting off-centre.
-      const live = rawOf(p, d.target.endsWith(".brightness") ? cutoffHz(base) : base); // gain sweeps linearly, not in dB
-      [lo, hi] = centredRange(lo, hi, live);
-      phase = 0;
-    }
+    // Enabled mid-play: centre the sweep on the live value at phase 0, so nothing steps. Tone's running oscillator
+    // does not honour a non-zero phase at its first sample (measured: it lands at twice the offset), so the
+    // range narrows to the span that fits symmetrically instead of starting off-centre.
+    const centred = this.started;
+    const [lo, hi] = sweepRange(p, d.target, min, max, base, centred);
+    const phase = centred ? 0 : this.phaseDeg(d.id);
     const lfo = new Tone.LFO({ min: lo, max: hi, frequency, phase });
     const mod = modBy ? this.makeMod(lfo, frequency, modBy) : null;
     this.graph.setDriven(d.target, true);
@@ -194,13 +197,12 @@ export class DriftRig {
     (lfo.output as Tone.ToneAudioNode).connect(p as any); // plain connect: Tone's LFO.connect would re-derive units from the param
     const analyser = new Tone.Analyser({ type: "waveform", size: 16 });
     lfo.connect(analyser);
-    return { target: d.target, param, periodSec: d.periodSec, modulator: modBy ? { id: modBy.id, periodSec: modBy.periodSec } : null, lfo, mod, analyser };
+    return { target: d.target, param, periodSec: d.periodSec, modulator: modBy ? { id: modBy.id, periodSec: modBy.periodSec } : null, lfo, mod, analyser, centred };
   }
 
   /** Retunes a running LFO in place so its phase, and so its output, stays continuous. */
-  private retune(a: Active, d: DriftSettings, modBy: DriftSettings | null, min: number, max: number): void {
-    a.lfo.min = rawOf(a.param as Tone.Param<any>, min);
-    a.lfo.max = rawOf(a.param as Tone.Param<any>, max);
+  private retune(a: Active, d: DriftSettings, modBy: DriftSettings | null, min: number, max: number, base: number): void {
+    [a.lfo.min, a.lfo.max] = sweepRange(a.param as Tone.Param<any>, a.target, min, max, base, a.centred);
     const f = 1 / d.periodSec;
     const periodChanged = a.periodSec !== d.periodSec;
     const sameMod = (a.modulator?.id ?? null) === (modBy?.id ?? null);
