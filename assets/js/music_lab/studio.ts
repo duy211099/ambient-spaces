@@ -6,6 +6,7 @@ import type { NoteEvent } from "./scheduler.ts";
 import { DEFAULT_SETTINGS, extremeSettings, normalizeSettings, type StudioSettings } from "./settings.ts";
 import { decodeShare, encodeShare } from "./share.ts";
 import { SettingsStore } from "./store.ts";
+import { Ripples } from "./visual/ripples.ts";
 import { renderControls } from "./ui/controls.ts";
 import { extensionFor, StudioRecorder } from "./audio/recorder.ts";
 
@@ -73,14 +74,16 @@ export function bootMusicStudio(): void {
   };
 
   const onNote = (e: NoteEvent & { layerIndex: number }) => {
-    // layerIndex stays available for the visual drawing added later.
     if (noteLog.length < NOTE_LOG_MAX) noteLog.push({ note: e.note, layerId: e.layerId, time: Math.round(e.time * 100) / 100 });
     const layer = store.get().layers[e.layerIndex];
-    logLines.push(`${new Date().toLocaleTimeString()}  ${layer?.label ?? e.layerId}  ${e.note}`);
+    logLines.push(`${new Date().toLocaleTimeString()}  t=${e.time.toFixed(2)}s  ${layer?.label ?? e.layerId}  ${e.note}`);
+    ripples?.add(e, e.layerIndex, store.get().layers.length);
     if (logLines.length > LOG_LINES) logLines.splice(0, logLines.length - LOG_LINES);
     if (logEl) logEl.textContent = logLines.join("\n");
   };
 
+  const canvas = q<HTMLCanvasElement>("#studio-visual");
+  const ripples = canvas ? new Ripples(canvas) : null;
   const engine = new StudioEngine(onNote);
   const controls = renderControls(controlsRoot, store.get(), (next) => change(next));
   store.subscribe((s) => {
@@ -107,6 +110,7 @@ export function bootMusicStudio(): void {
     if (getStatus() !== loading) return; // stopped while loading
     if (!engine.playing) return setStatus("stopped");
     setStatus("playing");
+    ripples?.start();
     syncRecordButton();
     if (store.get() !== started) engine.apply(store.get()); // edited while loading
   }
@@ -114,6 +118,7 @@ export function bootMusicStudio(): void {
   function stop(): void {
     if (recording) void finishRecording();
     engine.stop();
+    ripples?.stop();
     setStatus("stopped");
     syncRecordButton();
   }

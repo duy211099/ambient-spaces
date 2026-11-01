@@ -8,7 +8,7 @@
   #music-studio button { background: #3a2a20; color: #eadfd3; border: 1px solid #5a4334; border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit; }
   #music-studio button:hover { background: #4a3628; }
   .studio-status { color: #d9a66b; margin-left: 8px; }
-  #studio-visual { display: block; width: 100%; height: 160px; background: #110d0b; border: 1px solid #3a2a20; border-radius: 12px; margin-bottom: 16px; }
+  #studio-visual { display: block; width: 100%; height: 220px; background: #110d0b; border: 1px solid #3a2a20; border-radius: 12px; margin-bottom: 16px; }
   .panel { display: grid; grid-template-columns: 1fr; gap: 12px; background: #211913; border: 1px solid #3a2a20; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
   .panel h2 { font-size: 15px; margin: 0; color: #d9a66b; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .panel h2 .panel-actions { display: flex; gap: 6px; }
@@ -31,6 +31,7 @@
   .log-box { font: 12px/1.6 ui-monospace, monospace; color: #a8998a; background: #110d0b; border-radius: 8px; padding: 8px 12px; }
   .log-box summary { cursor: pointer; }
   .log-lines { max-height: 220px; overflow: auto; white-space: pre; }
+  @media (max-width: 480px) { #studio-visual { height: 160px; } }
   @media (max-width: 719px) {
     #music-studio { grid-template-columns: 1fr; }
     #guide-panel { position: fixed; left: 0; right: 0; bottom: 0; top: auto; max-height: 45vh; border-radius: 16px 16px 0 0; z-index: 10; }
