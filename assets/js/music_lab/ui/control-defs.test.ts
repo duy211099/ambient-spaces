@@ -113,3 +113,18 @@ test("removeDrift removes it and frees drifts it modulated", () => {
   assert.equal(next.drifts[0].modulatedBy, null);
   assert.equal(s.drifts.length, 2);
 });
+
+test("removeLayer purges drifts on that layer and frees drifts they modulated", () => {
+  const s0 = {
+    ...DEFAULT_SETTINGS,
+    drifts: [
+      { id: "a", target: "layer.notes.volume", periodSec: 10, depth: 1, enabled: true, modulatedBy: null },
+      { id: "b", target: "bus.reverbWet", periodSec: 10, depth: 1, enabled: true, modulatedBy: "a" },
+      { id: "c", target: "layer.drone.density", periodSec: 10, depth: 1, enabled: true, modulatedBy: null },
+    ] as const,
+  };
+  const next = removeLayer({ ...s0, drifts: [...s0.drifts] }, "notes");
+  assert.deepEqual(next.drifts.map((d) => d.id), ["b", "c"]);
+  assert.equal(next.drifts[0].modulatedBy, null);
+  assert.ok(!next.layers.some((l) => l.id === "notes"));
+});

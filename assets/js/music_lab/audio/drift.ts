@@ -6,6 +6,7 @@ import { driftRange, sineAt } from "./drift-math.ts";
 import { cutoffHz, REVERB_WET, type StudioGraph } from "./graph.ts";
 
 const RESTORE_RAMP = 0.5;
+type Release = "base" | "hold" | "none"; // ramp back to base, keep the LFO's last value, or leave the param alone
 const LAYER_TARGET = /^layer\.(.+)\.(brightness|volume|density)$/;
 
 type Param = NonNullable<ReturnType<StudioGraph["param"]>>;
@@ -17,7 +18,7 @@ interface Active {
   modulator: { id: string; periodSec: number } | null;
   lfo: Tone.LFO;
   mod: Tone.LFO | null;
-  meter: Tone.Meter | null;
+  analyser: Tone.Analyser;
 }
 
 interface DensityDrift {
@@ -48,6 +49,9 @@ function baseValue(target: DriftTarget, s: StudioSettings): number | null {
   if (l.param === "volume") return layer.volumeDb;
   return eff.density;
 }
+
+/** A value in the param's units as the raw number its audio signal carries (dB params take gain). */
+const rawOf = (p: Tone.Param<any>, v: number): number => (p.units === "decibels" && p.convert ? Tone.dbToGain(v) : v);
 
 /** The LFO's min and max in the target param's units. */
 function lfoRange(target: DriftTarget, base: number, depth: number): [number, number] {
@@ -103,10 +107,9 @@ export class DriftRig {
 
     for (const [id, a] of [...this.active]) {
       const w = wanted.get(id);
-      const same = w && w.d.target === a.target && w.param === a.param && w.d.periodSec === a.periodSec
-        && (w.mod?.id ?? null) === (a.modulator?.id ?? null) && (w.mod?.periodSec ?? null) === (a.modulator?.periodSec ?? null);
-      if (same) continue;
-      this.release(id, !w || w.d.target !== a.target); // a rebuild on the same param is replaced at once and needs no restore
+      if (w && w.d.target === a.target && w.param === a.param) continue;
+      // A stale param (reverb swapped) is left alone; a retargeted or dropped drift hands its old param back to base.
+      this.release(id, w && w.d.target === a.target ? "none" : "base");
     }
 
     for (const [id, { d, param, mod }] of wanted) {
@@ -114,19 +117,15 @@ export class DriftRig {
       if (base === null) continue;
       const [min, max] = lfoRange(d.target, base, d.depth);
       const existing = this.active.get(id);
-      if (existing) {
-        existing.lfo.min = min;
-        existing.lfo.max = max;
-        continue;
-      }
-      this.active.set(id, this.build(d, param, mod, min, max));
+      if (existing) this.retune(existing, d, mod, min, max);
+      else this.active.set(id, this.build(d, param, mod, min, max));
     }
   }
 
   /** Called as a layer is removed, before its channel ramps out: its params must stop being driven first. */
   dropLayer(layerId: string): void {
     for (const [id, a] of [...this.active]) {
-      if (layerOf(a.target)?.id === layerId) this.release(id, false);
+      if (layerOf(a.target)?.id === layerId) this.release(id, "hold"); // the channel's own fade-out takes over from here
     }
     this.density.delete(layerId);
   }
@@ -138,23 +137,14 @@ export class DriftRig {
     return lo + (hi - lo) * sineAt(d.periodSec, d.phase, t);
   }
 
-  /**
-   * The LFO's live output for inspection. A driven param's own `.value` stays at its intrinsic 0, so the
-   * LFO is metered instead. Only meaningful for targets in [0, 1] (reverb wet and size, feedback).
-   */
+  /** The LFO's latest output sample, in the param's raw units (gain for a dB param), or null when not driving. */
   read(id: string): number | null {
     const a = this.active.get(id);
-    if (!a) return null;
-    if (!a.meter) {
-      a.meter = new Tone.Meter({ smoothing: 0, normalRange: true });
-      a.lfo.connect(a.meter);
-      return null;
-    }
-    return Number(a.meter.getValue());
+    return a ? lastSample(a.analyser) : null;
   }
 
   dispose(): void {
-    for (const id of [...this.active.keys()]) this.release(id, false);
+    for (const id of [...this.active.keys()]) this.release(id, "none");
     this.density.clear();
   }
 
@@ -167,45 +157,88 @@ export class DriftRig {
     return p;
   }
 
-  private build(d: DriftSettings, param: Param, modBy: DriftSettings | null, min: number, max: number): Active {
-    const frequency = 1 / d.periodSec;
-    const lfo = new Tone.LFO({ min, max, frequency, phase: this.phaseDeg(d.id) });
-    let mod: Tone.LFO | null = null;
-    if (modBy) {
-      // Drift-on-drift: the other drift's rhythm speeds this one up and slows it down, 0.5x to 2x.
-      mod = new Tone.LFO({ min: frequency * 0.5, max: frequency * 2, frequency: 1 / modBy.periodSec, phase: this.phaseDeg(modBy.id) });
-      mod.connect(lfo.frequency);
-      mod.start();
-    }
-    this.graph.setDriven(d.target, true);
-    const p = param as Tone.Param<any>;
-    lfo.connect(p);
-    // Tone zeroes the intrinsic value on connect, but a dB param converts that 0 to unity gain; force a true 0 so only the LFO sounds.
-    p.overridden = true;
-    p.cancelScheduledValues(0);
-    p.setValueAtTime(0, 0);
-    lfo.min = min; // units follow the destination once connected
-    lfo.max = max;
-    lfo.start();
-    return { target: d.target, param, periodSec: d.periodSec, modulator: modBy ? { id: modBy.id, periodSec: modBy.periodSec } : null, lfo, mod, meter: null };
+  private makeMod(lfo: Tone.LFO, frequency: number, modBy: DriftSettings): Tone.LFO {
+    // Drift-on-drift: the other drift's rhythm speeds this one up and slows it down, 0.5x to 2x.
+    const mod = new Tone.LFO({ min: frequency * 0.5, max: frequency * 2, frequency: 1 / modBy.periodSec, phase: this.phaseDeg(modBy.id) });
+    mod.connect(lfo.frequency);
+    mod.start();
+    return mod;
   }
 
-  private release(id: string, restore: boolean): void {
+  private build(d: DriftSettings, param: Param, modBy: DriftSettings | null, min: number, max: number): Active {
+    const frequency = 1 / d.periodSec;
+    const p = param as Tone.Param<any>;
+    // The LFO works in the raw signal domain and connects through its output, so Tone never re-converts its range
+    // (which it does 100 ms late, leaving raw dB on a gain param for the first render quanta).
+    const lfo = new Tone.LFO({ min: rawOf(p, min), max: rawOf(p, max), frequency, phase: this.phaseDeg(d.id) });
+    const mod = modBy ? this.makeMod(lfo, frequency, modBy) : null;
+    this.graph.setDriven(d.target, true);
+    // Overridden first, so connect's own "zero the param" write is a true 0 (a dB param would otherwise be set to unity gain).
+    p.overridden = true;
+    lfo.start(Tone.immediate());
+    p.cancelScheduledValues(0);
+    p.setValueAtTime(0, 0);
+    (lfo.output as Tone.ToneAudioNode).connect(p as any); // plain connect: Tone's LFO.connect would re-derive units from the param
+    const analyser = new Tone.Analyser({ type: "waveform", size: 16 });
+    lfo.connect(analyser);
+    return { target: d.target, param, periodSec: d.periodSec, modulator: modBy ? { id: modBy.id, periodSec: modBy.periodSec } : null, lfo, mod, analyser };
+  }
+
+  /** Retunes a running LFO in place so its phase, and so its output, stays continuous. */
+  private retune(a: Active, d: DriftSettings, modBy: DriftSettings | null, min: number, max: number): void {
+    a.lfo.min = rawOf(a.param as Tone.Param<any>, min);
+    a.lfo.max = rawOf(a.param as Tone.Param<any>, max);
+    const f = 1 / d.periodSec;
+    const periodChanged = a.periodSec !== d.periodSec;
+    const sameMod = (a.modulator?.id ?? null) === (modBy?.id ?? null);
+    a.periodSec = d.periodSec;
+    if (!sameMod) {
+      if (a.mod) {
+        a.mod.stop();
+        a.mod.output.disconnect();
+        a.mod.dispose();
+        a.mod = null;
+        a.lfo.frequency.overridden = false;
+      }
+      if (modBy) a.mod = this.makeMod(a.lfo, f, modBy);
+      else a.lfo.frequency.value = f;
+    } else if (a.mod && modBy) {
+      if (periodChanged) {
+        a.mod.min = f * 0.5;
+        a.mod.max = f * 2;
+      }
+      if (a.modulator?.periodSec !== modBy.periodSec) a.mod.frequency.value = 1 / modBy.periodSec;
+    } else if (periodChanged) {
+      a.lfo.frequency.value = f;
+    }
+    a.modulator = modBy ? { id: modBy.id, periodSec: modBy.periodSec } : null;
+  }
+
+  private release(id: string, mode: Release): void {
     const a = this.active.get(id);
     if (!a) return;
     this.active.delete(id);
+    const p = a.param as Tone.Param<any>;
+    const last = mode === "none" ? null : lastSample(a.analyser);
     a.lfo.stop();
-    a.lfo.disconnect();
+    a.lfo.output.disconnect();
     a.lfo.dispose();
-    a.meter?.dispose();
+    a.analyser.dispose();
     a.mod?.stop();
     a.mod?.dispose();
     this.graph.setDriven(a.target, false);
-    const base = this.settings ? baseValue(a.target, this.settings) : null;
-    const p = a.param as Tone.Param<any>;
     p.overridden = false;
-    if (restore && base !== null && this.graph.param(a.target) === a.param) {
-      p.linearRampTo(a.target.endsWith(".brightness") ? cutoffHz(base) : base, RESTORE_RAMP);
-    }
+    if (mode === "none" || this.graph.param(a.target) !== a.param) return;
+    // Pick up exactly where the LFO left off, then glide to base (hold: stay there).
+    p.cancelScheduledValues(0);
+    if (last !== null) p.setValueAtTime(p.units === "decibels" && p.convert ? Tone.gainToDb(last) : last, Tone.now());
+    const base = this.settings ? baseValue(a.target, this.settings) : null;
+    if (mode === "base" && base !== null) p.linearRampTo(a.target.endsWith(".brightness") ? cutoffHz(base) : base, RESTORE_RAMP);
   }
+}
+
+function lastSample(analyser: Tone.Analyser): number | null {
+  const v = analyser.getValue();
+  const x = typeof v === "number" ? v : v[v.length - 1];
+  return Number.isFinite(x) ? Number(x) : null;
 }

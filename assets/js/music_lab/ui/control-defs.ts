@@ -135,7 +135,10 @@ export function addLayer(s: StudioSettings): StudioSettings {
 
 export function removeLayer(s: StudioSettings, id: string): StudioSettings {
   if (s.layers.length <= 1) return s;
-  return { ...s, layers: s.layers.filter((l) => l.id !== id) };
+  const layers = s.layers.filter((l) => l.id !== id);
+  const drifts = s.drifts.filter((d) => !d.target.startsWith(`layer.${id}.`));
+  const gone = new Set(s.drifts.filter((d) => !drifts.includes(d)).map((d) => d.id));
+  return { ...s, layers, drifts: drifts.map((d) => (d.modulatedBy !== null && gone.has(d.modulatedBy) ? { ...d, modulatedBy: null } : d)) };
 }
 
 export const weightDef = (note: string): ControlDef => ({
