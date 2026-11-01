@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CAPS } from "../settings.ts";
-import { driftRange, legalRange, sineAt } from "./drift-math.ts";
+import { centredRange, driftRange, legalRange, sineAt } from "./drift-math.ts";
 
 test("feedback never exceeds the cap", () => {
   const [lo, hi] = driftRange("bus.delayFeedback", 0.7, 1);
@@ -42,4 +42,14 @@ test("sineAt peaks a quarter period in and stays in [0, 1]", () => {
     const v = sineAt(1000, 1.3, t);
     assert.ok(v >= 0 && v <= 1);
   }
+});
+
+test("centredRange is symmetric about the value and stays inside the range", () => {
+  assert.deepEqual(centredRange(0, 1, 0.5), [0, 1]);
+  const [lo, hi] = centredRange(0, 0.75, 0.35);
+  assert.ok(Math.abs((lo + hi) / 2 - 0.35) < 1e-9);
+  assert.ok(lo >= 0 && hi <= 0.75);
+  assert.ok(Math.abs(hi - lo - 0.7) < 1e-9);
+  assert.deepEqual(centredRange(0, 1, 0), [0, 0]);
+  assert.deepEqual(centredRange(0.2, 0.4, 5), [5, 5]);
 });

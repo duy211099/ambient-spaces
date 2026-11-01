@@ -24,3 +24,9 @@ export function driftRange(target: DriftTarget, base: number, depth: number): [n
 export function sineAt(periodSec: number, phase: number, t: number): number {
   return 0.5 + 0.5 * Math.sin(2 * Math.PI * (t / periodSec) + phase);
 }
+
+/** The widest span inside [min, max] that is symmetric about `value`, so a sine at phase 0 starts exactly on it. */
+export function centredRange(min: number, max: number, value: number): [number, number] {
+  const half = Math.max(0, Math.min(value - min, max - value));
+  return [value - half, value + half];
+}

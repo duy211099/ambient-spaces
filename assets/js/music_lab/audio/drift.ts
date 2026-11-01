@@ -2,7 +2,7 @@ import * as Tone from "tone";
 import { effectiveLayer } from "../mood.ts";
 import type { Rng } from "../rng.ts";
 import { CAPS, type DriftSettings, type DriftTarget, type StudioSettings } from "../settings.ts";
-import { driftRange, sineAt } from "./drift-math.ts";
+import { centredRange, driftRange, sineAt } from "./drift-math.ts";
 import { cutoffHz, REVERB_WET, type StudioGraph } from "./graph.ts";
 
 const RESTORE_RAMP = 0.5;
@@ -77,6 +77,7 @@ export class DriftRig {
   private phases = new Map<string, number>();
   private density = new Map<string, DensityDrift>();
   private settings: StudioSettings | null = null;
+  private started = false; // after the first apply, new drifts start at the current value instead of a seeded phase
 
   constructor(graph: StudioGraph, rng: Rng) {
     this.graph = graph;
@@ -118,8 +119,9 @@ export class DriftRig {
       const [min, max] = lfoRange(d.target, base, d.depth);
       const existing = this.active.get(id);
       if (existing) this.retune(existing, d, mod, min, max);
-      else this.active.set(id, this.build(d, param, mod, min, max));
+      else this.active.set(id, this.build(d, param, mod, min, max, base));
     }
+    this.started = true;
   }
 
   /** Called as a layer is removed, before its channel ramps out: its params must stop being driven first. */
@@ -165,12 +167,23 @@ export class DriftRig {
     return mod;
   }
 
-  private build(d: DriftSettings, param: Param, modBy: DriftSettings | null, min: number, max: number): Active {
+  private build(d: DriftSettings, param: Param, modBy: DriftSettings | null, min: number, max: number, base: number): Active {
     const frequency = 1 / d.periodSec;
     const p = param as Tone.Param<any>;
     // The LFO works in the raw signal domain and connects through its output, so Tone never re-converts its range
     // (which it does 100 ms late, leaving raw dB on a gain param for the first render quanta).
-    const lfo = new Tone.LFO({ min: rawOf(p, min), max: rawOf(p, max), frequency, phase: this.phaseDeg(d.id) });
+    let lo = rawOf(p, min);
+    let hi = rawOf(p, max);
+    let phase = this.phaseDeg(d.id);
+    if (this.started) {
+      // Enabled mid-play: centre the sweep on the live value at phase 0, so nothing steps. Tone's running oscillator
+      // does not honour a non-zero phase at its first sample (measured: it lands at twice the offset), so the
+      // range narrows to the span that fits symmetrically instead of starting off-centre.
+      const live = rawOf(p, d.target.endsWith(".brightness") ? cutoffHz(base) : base); // gain sweeps linearly, not in dB
+      [lo, hi] = centredRange(lo, hi, live);
+      phase = 0;
+    }
+    const lfo = new Tone.LFO({ min: lo, max: hi, frequency, phase });
     const mod = modBy ? this.makeMod(lfo, frequency, modBy) : null;
     this.graph.setDriven(d.target, true);
     // Overridden first, so connect's own "zero the param" write is a true 0 (a dB param would otherwise be set to unity gain).
