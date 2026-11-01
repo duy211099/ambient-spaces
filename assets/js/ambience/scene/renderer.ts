@@ -1,3 +1,4 @@
+import Phaser from "phaser";
 import type { LayerId, Rect } from "../core/types";
 import type { Scene } from "./scene";
 import { MAX_PARALLAX } from "./entities/geometry";
@@ -10,56 +11,67 @@ interface View {
 
 const PARALLAX_EASE = 0.06;
 const MAX_DPR = 2;
+const BACKDROP = "backdrop";
 
 const inside = (r: Rect, x: number, y: number): boolean => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 
-/** Canvas loop, resize, parallax pointer and hit testing. Knows nothing about what is drawn. */
+/**
+ * Phaser game that owns the loop, resize, parallax pointer and hit testing.
+ * The cafe entities still draw with Canvas 2D into a texture that sits behind any future sprites.
+ */
 export class Renderer {
-  private readonly g: CanvasRenderingContext2D;
+  private readonly stage: HTMLElement;
   private view: View = { scale: 1, ox: 0, oy: 0 };
-  private cssW = 0;
-  private cssH = 0;
+  private cssW = 1;
+  private cssH = 1;
   private dpr = 1;
-  private raf = 0;
-  private last = 0;
   private target = { x: 0, y: 0 };
+  private backdrop: Phaser.Textures.CanvasTexture | null = null;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly scene: Scene,
     private readonly onHit: (id: LayerId) => void,
   ) {
-    const g = canvas.getContext("2d");
-    if (!g) throw new Error("Canvas 2D is not available");
-    this.g = g;
-    window.addEventListener("resize", this.resize);
-    document.addEventListener("visibilitychange", this.onVisibility);
-    canvas.addEventListener("pointermove", this.onPointerMove);
-    canvas.addEventListener("pointerleave", this.onPointerLeave);
-    canvas.addEventListener("click", this.onClick);
-    this.resize();
+    this.stage = canvas.parentElement ?? document.body;
+    this.measure();
+    const self = this;
+    new Phaser.Game({
+      type: Phaser.CANVAS,
+      canvas,
+      width: Math.round(this.cssW * this.dpr),
+      height: Math.round(this.cssH * this.dpr),
+      backgroundColor: "#2b1d17",
+      banner: false,
+      audio: { noAudio: true },
+      scale: { mode: Phaser.Scale.NONE, zoom: 1 / this.dpr },
+      input: {
+        mouse: { preventDefaultDown: false, preventDefaultUp: false, preventDefaultMove: false, preventDefaultWheel: false },
+        touch: { capture: false },
+      },
+      scene: {
+        create(this: Phaser.Scene) {
+          self.create(this);
+        },
+        update(this: Phaser.Scene, _time: number, delta: number) {
+          self.tick(delta / 1000);
+        },
+      },
+    });
   }
 
-  start(): void {
-    if (this.raf === 0 && !document.hidden) {
-      this.last = performance.now();
-      this.raf = requestAnimationFrame(this.tick);
-    }
+  private create(phaser: Phaser.Scene): void {
+    this.backdrop = phaser.textures.createCanvas(BACKDROP, phaser.scale.width, phaser.scale.height);
+    phaser.add.image(0, 0, BACKDROP).setOrigin(0, 0);
+    phaser.input.on("pointermove", this.onPointerMove);
+    phaser.input.on("pointerup", this.onPointerUp);
+    phaser.input.on("gameout", this.onPointerLeave);
+    window.addEventListener("resize", () => this.resize(phaser));
+    this.resize(phaser);
   }
 
-  private stop(): void {
-    cancelAnimationFrame(this.raf);
-    this.raf = 0;
-  }
-
-  private onVisibility = (): void => {
-    if (document.hidden) this.stop();
-    else this.start();
-  };
-
-  private tick = (now: number): void => {
-    const dt = Math.min(0.05, Math.max(0, (now - this.last) / 1000));
-    this.last = now;
+  private tick(seconds: number): void {
+    const dt = Math.min(0.05, Math.max(0, seconds));
     const p = this.scene.parallax;
     if (this.scene.reduced) {
       p.x = 0;
@@ -70,25 +82,25 @@ export class Renderer {
     }
     this.scene.update(dt);
     this.draw();
-    this.raf = requestAnimationFrame(this.tick);
-  };
+  }
 
   private draw(): void {
-    const { g, view, dpr } = this;
+    if (!this.backdrop) return;
+    const g = this.backdrop.getContext();
+    const { view, dpr } = this;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = "#2b1d17";
     g.fillRect(0, 0, this.cssW, this.cssH);
     g.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, dpr * view.ox, dpr * view.oy);
     this.scene.draw(g, MAX_PARALLAX);
+    this.backdrop.refresh();
   }
 
-  private resize = (): void => {
-    const rect = this.canvas.getBoundingClientRect();
-    this.cssW = rect.width;
-    this.cssH = rect.height;
+  private measure(): void {
+    const rect = this.stage.getBoundingClientRect();
+    this.cssW = Math.max(1, rect.width);
+    this.cssH = Math.max(1, rect.height);
     this.dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
-    this.canvas.width = Math.max(1, Math.round(this.cssW * this.dpr));
-    this.canvas.height = Math.max(1, Math.round(this.cssH * this.dpr));
     const { w, h } = this.scene.config.size;
     const portrait = this.cssH > this.cssW;
     const scale = Math.max(this.cssW / w, Math.min(this.cssH / h, this.cssW / (w * 0.6)));
@@ -97,34 +109,39 @@ export class Renderer {
       ox: (this.cssW - w * scale) / 2,
       oy: (this.cssH - h * scale) * (portrait ? 0.3 : 0.5),
     };
-    if (this.raf === 0 && !document.hidden) this.draw();
-  };
-
-  private toScene(e: PointerEvent | MouseEvent): { x: number; y: number } {
-    const r = this.canvas.getBoundingClientRect();
-    return { x: (e.clientX - r.left - this.view.ox) / this.view.scale, y: (e.clientY - r.top - this.view.oy) / this.view.scale };
   }
 
-  private hitTest(e: PointerEvent | MouseEvent): LayerId | null {
-    const p = this.toScene(e);
-    const layer = this.scene.config.layers.find((l) => inside(l.hit, p.x, p.y));
+  private resize(phaser: Phaser.Scene): void {
+    this.measure();
+    const width = Math.round(this.cssW * this.dpr);
+    const height = Math.round(this.cssH * this.dpr);
+    phaser.scale.setZoom(1 / this.dpr);
+    phaser.scale.resize(width, height);
+    this.backdrop?.setSize(width, height);
+    this.draw();
+  }
+
+  private sceneHit(pointer: Phaser.Input.Pointer): LayerId | null {
+    const x = (pointer.x / this.dpr - this.view.ox) / this.view.scale;
+    const y = (pointer.y / this.dpr - this.view.oy) / this.view.scale;
+    const layer = this.scene.config.layers.find((l) => inside(l.hit, x, y));
     return layer ? layer.id : null;
   }
 
-  private onPointerMove = (e: PointerEvent): void => {
+  private onPointerMove = (pointer: Phaser.Input.Pointer): void => {
     this.target = {
-      x: (e.clientX / this.cssW) * 2 - 1,
-      y: (e.clientY / this.cssH) * 2 - 1,
+      x: (pointer.x / this.dpr / this.cssW) * 2 - 1,
+      y: (pointer.y / this.dpr / this.cssH) * 2 - 1,
     };
-    this.canvas.style.cursor = this.hitTest(e) ? "pointer" : "default";
+    this.canvas.style.cursor = this.sceneHit(pointer) ? "pointer" : "default";
   };
 
   private onPointerLeave = (): void => {
     this.target = { x: 0, y: 0 };
   };
 
-  private onClick = (e: MouseEvent): void => {
-    const id = this.hitTest(e);
+  private onPointerUp = (pointer: Phaser.Input.Pointer): void => {
+    const id = this.sceneHit(pointer);
     if (id) this.onHit(id);
   };
 }

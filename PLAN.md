@@ -5,7 +5,9 @@
 Phoenix 1.7 serves one page and the static assets. There is no database and no
 server-side state: the mix lives in the browser (localStorage). Phoenix's own
 esbuild compiles TypeScript straight from `assets/js/**/*.ts`; `tsc --noEmit`
-type-checks it. Rendering uses plain Canvas 2D, so there are no npm runtime deps.
+type-checks it. Phaser (the only npm runtime dep) owns the loop and input; the
+scene entities still draw with Canvas 2D into a Phaser canvas texture, so future
+sprites can sit on top of them.
 
 ```
 lib/living_ambience_web/controllers/page_*    one page: <canvas>, controls root, scene id
@@ -17,7 +19,7 @@ assets/js/ambience/
   audio/engine.ts       AudioContext, master gain, window low-pass, layer registry
   audio/layer.ts        one looping source -> GainNode
   audio/procedural.ts   seamless-loop noise/murmur/hiss/music buffers (fallbacks)
-  scene/renderer.ts     rAF loop, parallax, visibility pause, hit testing
+  scene/renderer.ts     Phaser game: loop, resize, parallax, hit testing
   scene/entities/*.ts   rain, customers, barista, speaker, window, cat, lamps
   ui/controls.ts        sliders, master, play/pause, window toggle, idle fade
   state/mix.ts          MixState reducer + persistence (try/catch)

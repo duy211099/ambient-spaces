@@ -67,7 +67,7 @@ function boot(): void {
     onStart: () => void ensureStarted(),
   });
 
-  const renderer = new Renderer(canvas, scene, (id: LayerId) => controls.focusLayer(id));
+  new Renderer(canvas, scene, (id: LayerId) => controls.focusLayer(id));
 
   function sync(): void {
     const mix = store.get();
@@ -94,7 +94,6 @@ function boot(): void {
   canvas.addEventListener("click", () => void ensureStarted());
   sync();
   controls.setStarted(false);
-  renderer.start();
 
   Object.assign(window, {
     __ambience: {
