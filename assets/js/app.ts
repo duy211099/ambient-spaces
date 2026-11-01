@@ -6,6 +6,7 @@ import { Scene } from "./ambience/scene/scene";
 import { SCENES } from "./ambience/scenes/registry";
 import { loadMix, MixStore, saveMix } from "./ambience/state/mix";
 import { Controls } from "./ambience/ui/controls";
+import { bootMusicLab } from "./music_lab/lab";
 
 const SAVE_DEBOUNCE_MS = 200;
 
@@ -105,3 +106,4 @@ function boot(): void {
 }
 
 boot();
+bootMusicLab();

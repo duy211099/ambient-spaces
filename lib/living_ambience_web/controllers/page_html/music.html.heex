@@ -1,0 +1,48 @@
+<%!-- THROWAWAY SPIKE: generative music playground. --%>
+<style>
+  body { margin: 0; background: #17120f; color: #eadfd3; font: 15px/1.5 system-ui, sans-serif; }
+  #music-lab { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+  #music-lab h1 { font-size: 22px; margin: 0 0 4px; }
+  #music-lab .sub { color: #a8998a; margin: 0 0 20px; }
+  .lab-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .lab-row button { background: #3a2a20; color: #eadfd3; border: 1px solid #5a4334; border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit; }
+  .lab-row button:hover { background: #4a3628; }
+  .lab-status { color: #d9a66b; margin-left: 8px; }
+  .lab-grid { display: grid; grid-template-columns: 1fr; gap: 12px; background: #211913; border: 1px solid #3a2a20; border-radius: 12px; padding: 16px; }
+  .lab-grid label { display: grid; gap: 4px; }
+  .lab-grid label span { font-size: 13px; color: #a8998a; display: flex; justify-content: space-between; }
+  .lab-grid select, .lab-grid input[type=range] { width: 100%; }
+  .lab-grid select { background: #17120f; color: #eadfd3; border: 1px solid #5a4334; border-radius: 6px; padding: 6px; font: inherit; }
+  .voices { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0; }
+  .voice { display: grid; justify-items: center; gap: 4px; width: 64px; padding: 10px 0; border-radius: 10px; background: #211913; border: 1px solid #3a2a20; }
+  .voice__dot { width: 22px; height: 22px; border-radius: 50%; background: #3a2a20; transition: background 2.5s ease-out, box-shadow 2.5s ease-out; }
+  .voice--hit .voice__dot { background: #f2c38a; box-shadow: 0 0 18px #f2c38a; transition: none; }
+  .voice__note { font-weight: 600; }
+  .voice__count { font-size: 12px; color: #a8998a; }
+  .log { font: 12px/1.6 ui-monospace, monospace; color: #a8998a; max-height: 220px; overflow: auto; background: #110d0b; border-radius: 8px; padding: 8px 12px; white-space: pre; }
+</style>
+<main id="music-lab">
+  <h1>Music lab</h1>
+  <p class="sub">Generative music playground (throwaway). Each note is its own voice on its own timer.</p>
+
+  <div class="lab-row">
+    <button type="button" data-play>▶ Play</button>
+    <button type="button" data-stop>■ Stop</button>
+    <button type="button" data-reshuffle>↻ Reshuffle timings</button>
+    <span class="lab-status" data-status>stopped</span>
+  </div>
+
+  <div class="lab-grid">
+    <label><span>Notes</span><select name="preset"></select></label>
+    <label><span>Instrument</span><select name="instrument"></select></label>
+    <label><span>Timing</span><select name="mode"></select></label>
+    <label><span>Sparser ↔ busier <em data-out="density"></em></span><input type="range" name="density" min="0" max="1" step="0.01" /></label>
+    <label><span>Darker ↔ brighter <em data-out="brightness"></em></span><input type="range" name="brightness" min="0" max="1" step="0.01" /></label>
+    <label><span>Reverb (ignored while drifting) <em data-out="reverb"></em></span><input type="range" name="reverb" min="0" max="1" step="0.01" /></label>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="drift" /> Let reverb drift slowly (LFO, 2-minute cycle)</label>
+    <label><span>Volume <em data-out="volume"></em></span><input type="range" name="volume" min="-40" max="0" step="1" /></label>
+  </div>
+
+  <div class="voices" data-voices></div>
+  <div class="log" data-log></div>
+</main>

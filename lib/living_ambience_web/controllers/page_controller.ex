@@ -6,4 +6,9 @@ defmodule LivingAmbienceWeb.PageController do
     # so skip the default app layout.
     render(conn, :home, layout: false)
   end
+
+  # Throwaway spike: generative music playground.
+  def music(conn, _params) do
+    render(conn, :music, layout: false, page_title: "Music lab")
+  end
 end

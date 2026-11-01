@@ -18,6 +18,7 @@ defmodule LivingAmbienceWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/music", PageController, :music
   end
 
   # Other scopes may use custom stacks.
