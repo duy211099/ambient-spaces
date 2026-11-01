@@ -1,4 +1,5 @@
 import * as Tone from "tone";
+import { PIANO_BASE_URL, PIANO_SAMPLES } from "../piano.ts";
 import type { Rng } from "../rng.ts";
 import type { InstrumentId } from "../settings.ts";
 
@@ -38,6 +39,12 @@ function tone(): Tone.PolySynth {
   });
 }
 
+// Lesson 4: recorded notes instead of a synthesized voice. Samples are pitched to fill the gaps.
+function piano(): Tone.Sampler | null {
+  if (!PIANO_SAMPLES) return null;
+  return new Tone.Sampler({ urls: PIANO_SAMPLES, baseUrl: PIANO_BASE_URL, release: 1 });
+}
+
 export function makeInstrument(id: InstrumentId): Instrument {
   let inst: Instrument;
   switch (id) {
@@ -50,7 +57,9 @@ export function makeInstrument(id: InstrumentId): Instrument {
     case "tone":
       inst = tone();
       break;
-    case "piano": // falls back to keys until the sampler lands (Task 6)
+    case "piano":
+      inst = piano() ?? keys();
+      break;
     case "keys":
       inst = keys();
       break;

@@ -1,5 +1,6 @@
 import { StudioEngine } from "./audio/engine.ts";
 import { renderPeak } from "./audio/offline.ts";
+import { usesPiano } from "./piano.ts";
 import { randomSeed } from "./rng.ts";
 import type { NoteEvent } from "./scheduler.ts";
 import { DEFAULT_SETTINGS, extremeSettings, normalizeSettings, type StudioSettings } from "./settings.ts";
@@ -7,7 +8,7 @@ import { renderControls } from "./ui/controls.ts";
 
 const LOG_LINES = 50;
 
-type Status = "stopped" | "loading…" | "playing";
+type Status = "stopped" | "loading…" | "loading piano…" | "playing";
 
 export function bootMusicStudio(): void {
   const root = document.getElementById("music-studio");
@@ -47,8 +48,9 @@ export function bootMusicStudio(): void {
 
   async function play(): Promise<void> {
     if (status !== "stopped") return;
-    setStatus("loading…");
     const started = current;
+    const loading: Status = usesPiano(started.layers) ? "loading piano…" : "loading…";
+    setStatus(loading);
     try {
       await engine.start(started);
     } catch (err) {
@@ -56,7 +58,7 @@ export function bootMusicStudio(): void {
       setStatus("stopped");
       return;
     }
-    if (getStatus() !== "loading…") return; // stopped while loading
+    if (getStatus() !== loading) return; // stopped while loading
     if (!engine.playing) return setStatus("stopped");
     setStatus("playing");
     if (current !== started) engine.apply(current); // edited while loading

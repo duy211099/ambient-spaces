@@ -1,4 +1,5 @@
 import { NOTE_SETS } from "./notesets.ts";
+import { DEFAULT_NOTES_INSTRUMENT } from "./piano.ts";
 
 export type InstrumentId = "piano" | "keys" | "pad" | "bell" | "tone";
 export type TimingMode = "eno" | "randomOnce" | "randomEvery";
@@ -92,7 +93,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
       density: 0.15, brightness: 0.4, volumeDb: -20, send: 0.6, muted: false,
     },
     {
-      id: "notes", label: "Notes", instrument: "keys", mode: "randomEvery",
+      id: "notes", label: "Notes", instrument: DEFAULT_NOTES_INSTRUMENT, mode: "randomEvery",
       noteSetIds: ["airports", "airportsAlt"], changeEverySec: [180, 420], weights: {},
       density: 0.35, brightness: 0.5, volumeDb: -14, send: 0.5, muted: false,
     },

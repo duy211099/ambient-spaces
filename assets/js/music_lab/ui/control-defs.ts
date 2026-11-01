@@ -1,4 +1,5 @@
 import { NOTE_SETS } from "../notesets.ts";
+import { PIANO_SAMPLES } from "../piano.ts";
 import { CAPS, type LayerSettings, type StudioSettings } from "../settings.ts";
 
 export interface ControlDef {
@@ -45,7 +46,7 @@ export const CONTROL_DEFS: ControlDef[] = [
 
   {
     id: "instrument", label: "Instrument", kind: "select", scope: "layer", path: "instrument",
-    options: { piano: "Soft piano", keys: "Keys", pad: "Warm pad", bell: "Temple bell", tone: "Pure tone" },
+    options: { piano: PIANO_SAMPLES ? "Soft piano" : "Piano (samples not installed)", keys: "Keys", pad: "Warm pad", bell: "Temple bell", tone: "Pure tone" },
     guide: "instrument",
   },
   {
