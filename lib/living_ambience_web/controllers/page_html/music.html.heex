@@ -1,48 +1,57 @@
-<%!-- THROWAWAY SPIKE: generative music playground. --%>
 <style>
   body { margin: 0; background: #17120f; color: #eadfd3; font: 15px/1.5 system-ui, sans-serif; }
-  #music-lab { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
-  #music-lab h1 { font-size: 22px; margin: 0 0 4px; }
-  #music-lab .sub { color: #a8998a; margin: 0 0 20px; }
-  .lab-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
-  .lab-row button { background: #3a2a20; color: #eadfd3; border: 1px solid #5a4334; border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit; }
-  .lab-row button:hover { background: #4a3628; }
-  .lab-status { color: #d9a66b; margin-left: 8px; }
-  .lab-grid { display: grid; grid-template-columns: 1fr; gap: 12px; background: #211913; border: 1px solid #3a2a20; border-radius: 12px; padding: 16px; }
-  .lab-grid label { display: grid; gap: 4px; }
-  .lab-grid label span { font-size: 13px; color: #a8998a; display: flex; justify-content: space-between; }
-  .lab-grid select, .lab-grid input[type=range] { width: 100%; }
-  .lab-grid select { background: #17120f; color: #eadfd3; border: 1px solid #5a4334; border-radius: 6px; padding: 6px; font: inherit; }
-  .voices { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0; }
-  .voice { display: grid; justify-items: center; gap: 4px; width: 64px; padding: 10px 0; border-radius: 10px; background: #211913; border: 1px solid #3a2a20; }
-  .voice__dot { width: 22px; height: 22px; border-radius: 50%; background: #3a2a20; transition: background 2.5s ease-out, box-shadow 2.5s ease-out; }
-  .voice--hit .voice__dot { background: #f2c38a; box-shadow: 0 0 18px #f2c38a; transition: none; }
-  .voice__note { font-weight: 600; }
-  .voice__count { font-size: 12px; color: #a8998a; }
-  .log { font: 12px/1.6 ui-monospace, monospace; color: #a8998a; max-height: 220px; overflow: auto; background: #110d0b; border-radius: 8px; padding: 8px 12px; white-space: pre; }
+  #music-studio { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; }
+  #music-studio h1 { font-size: 22px; margin: 0 0 4px; }
+  #music-studio .sub { color: #a8998a; margin: 0 0 20px; }
+  .studio-main { min-width: 0; }
+  .studio-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  #music-studio button { background: #3a2a20; color: #eadfd3; border: 1px solid #5a4334; border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit; }
+  #music-studio button:hover { background: #4a3628; }
+  .studio-status { color: #d9a66b; margin-left: 8px; }
+  #studio-visual { display: block; width: 100%; height: 160px; background: #110d0b; border: 1px solid #3a2a20; border-radius: 12px; margin-bottom: 16px; }
+  .panel { display: grid; grid-template-columns: 1fr; gap: 12px; background: #211913; border: 1px solid #3a2a20; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .panel h2 { font-size: 15px; margin: 0; color: #d9a66b; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .panel h2 .panel-actions { display: flex; gap: 6px; }
+  .panel h2 button { padding: 2px 10px; font-size: 13px; }
+  .ctl { display: grid; gap: 4px; }
+  .ctl-head { font-size: 13px; color: #a8998a; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .ctl-head label { flex: 1; }
+  .ctl-head em { font-style: normal; color: #eadfd3; }
+  .ctl--toggle { display: flex; align-items: center; gap: 8px; }
+  .ctl--toggle label { flex: 1; font-size: 13px; color: #a8998a; }
+  .ctl select, .ctl input[type=range], .ctl input[type=number] { width: 100%; box-sizing: border-box; }
+  .ctl select, .ctl input[type=number] { background: #17120f; color: #eadfd3; border: 1px solid #5a4334; border-radius: 6px; padding: 6px; font: inherit; }
+  .weights { display: grid; gap: 8px; border-top: 1px solid #3a2a20; padding-top: 10px; }
+  .weights > summary { cursor: pointer; font-size: 13px; color: #a8998a; }
+  button.info { padding: 0 7px; border-radius: 50%; font-size: 12px; line-height: 20px; background: transparent; color: #d9a66b; }
+  #guide-panel { position: sticky; top: 16px; align-self: start; background: #211913; border: 1px solid #3a2a20; border-radius: 12px; padding: 16px; max-height: calc(100vh - 32px); overflow: auto; }
+  #guide-panel[hidden] { display: none; }
+  .log-box { font: 12px/1.6 ui-monospace, monospace; color: #a8998a; background: #110d0b; border-radius: 8px; padding: 8px 12px; }
+  .log-box summary { cursor: pointer; }
+  .log-lines { max-height: 220px; overflow: auto; white-space: pre; }
+  @media (max-width: 719px) {
+    #music-studio { grid-template-columns: 1fr; }
+    #guide-panel { position: fixed; left: 0; right: 0; bottom: 0; top: auto; max-height: 45vh; border-radius: 16px 16px 0 0; z-index: 10; }
+  }
 </style>
-<main id="music-lab">
-  <h1>Music lab</h1>
-  <p class="sub">Generative music playground (throwaway). Each note is its own voice on its own timer.</p>
+<main id="music-studio">
+  <div class="studio-main">
+    <h1>Music studio</h1>
+    <p class="sub">Layered generative music. Each note is its own voice on its own timer.</p>
 
-  <div class="lab-row">
-    <button type="button" data-play>▶ Play</button>
-    <button type="button" data-stop>■ Stop</button>
-    <button type="button" data-reshuffle>↻ Reshuffle timings</button>
-    <span class="lab-status" data-status>stopped</span>
+    <div class="studio-row">
+      <button type="button" data-play>▶ Play</button>
+      <button type="button" data-stop>■ Stop</button>
+      <button type="button" data-reshuffle>↻ Reshuffle</button>
+      <span class="studio-status" data-status>stopped</span>
+    </div>
+
+    <canvas id="studio-visual" width="800" height="160"></canvas>
+    <div data-controls></div>
+    <details class="log-box" data-log>
+      <summary>Note log</summary>
+      <div class="log-lines" data-log-lines></div>
+    </details>
   </div>
-
-  <div class="lab-grid">
-    <label><span>Notes</span><select name="preset"></select></label>
-    <label><span>Instrument</span><select name="instrument"></select></label>
-    <label><span>Timing</span><select name="mode"></select></label>
-    <label><span>Sparser ↔ busier <em data-out="density"></em></span><input type="range" name="density" min="0" max="1" step="0.01" /></label>
-    <label><span>Darker ↔ brighter <em data-out="brightness"></em></span><input type="range" name="brightness" min="0" max="1" step="0.01" /></label>
-    <label><span>Reverb (ignored while drifting) <em data-out="reverb"></em></span><input type="range" name="reverb" min="0" max="1" step="0.01" /></label>
-    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="drift" /> Let reverb drift slowly (LFO, 2-minute cycle)</label>
-    <label><span>Volume <em data-out="volume"></em></span><input type="range" name="volume" min="-40" max="0" step="1" /></label>
-  </div>
-
-  <div class="voices" data-voices></div>
-  <div class="log" data-log></div>
+  <aside id="guide-panel" hidden></aside>
 </main>

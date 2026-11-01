@@ -39,6 +39,7 @@ export class StudioEngine {
   private t0 = 0;
   private isPlaying = false;
   private token = 0;
+  private starting = false;
 
   constructor(onNote: (e: NoteEvent & { layerIndex: number }) => void) {
     this.onNote = onNote;
@@ -54,20 +55,29 @@ export class StudioEngine {
   }
 
   async start(s: StudioSettings): Promise<void> {
-    if (this.isPlaying) return;
+    if (this.isPlaying || this.starting) return;
+    this.starting = true;
     const token = ++this.token;
-    await Tone.start();
-    const graph = new StudioGraph(s);
-    this.graph = graph;
-    this.settings = structuredClone(s);
-    this.isPlaying = true;
-    for (const l of s.layers) this.voices.set(l.id, this.makeVoice(l, s.seed));
-    await Promise.all([graph.ready(), Tone.loaded()]);
-    if (token !== this.token) return; // stopped while loading
-    for (const v of this.voices.values()) v.scheduler.start(v.layer);
-    const transport = Tone.getTransport();
-    this.t0 = Tone.now() + START_LEAD;
-    transport.start(this.t0, 0);
+    try {
+      await Tone.start();
+      if (token !== this.token) return; // stopped during the gesture wait
+      const graph = new StudioGraph(s);
+      this.graph = graph;
+      this.settings = structuredClone(s);
+      this.isPlaying = true;
+      for (const l of s.layers) this.voices.set(l.id, this.makeVoice(l, s.seed));
+      await Promise.all([graph.ready(), Tone.loaded()]);
+      if (token !== this.token) return; // stopped while loading
+      for (const v of this.voices.values()) v.scheduler.start(v.layer);
+      const transport = Tone.getTransport();
+      this.t0 = Tone.now() + START_LEAD;
+      transport.start(this.t0, 0);
+    } catch (err) {
+      if (token === this.token) this.stop();
+      throw err;
+    } finally {
+      this.starting = false;
+    }
   }
 
   apply(next: StudioSettings): void {
@@ -76,6 +86,7 @@ export class StudioEngine {
     if (!graph || !prev || !this.isPlaying) return;
     const s = structuredClone(next);
     const seedChanged = s.seed !== prev.seed;
+    this.settings = s; // new layers' schedulers read the mood from here
 
     for (const id of [...this.voices.keys()]) {
       if (!s.layers.some((l) => l.id === id)) {
@@ -115,12 +126,11 @@ export class StudioEngine {
     if (s.masterDb !== prev.masterDb) graph.applyMaster(s.masterDb);
     if (!sameJson(s.bus, prev.bus)) graph.applyBus(s.bus);
     for (const l of s.layers) graph.applyLayer(l, effectiveLayer(l, s.mood));
-    this.settings = s;
   }
 
   stop(): void {
-    if (!this.isPlaying) return;
     this.token++;
+    if (!this.isPlaying) return;
     this.isPlaying = false;
     const transport = Tone.getTransport();
     for (const v of this.voices.values()) {
@@ -175,6 +185,9 @@ export class StudioEngine {
     const audioTime = this.t0 + e.time;
     voice.instrument.triggerAttackRelease(e.note, noteLength(voice.instrumentId, voice.rng), audioTime, e.velocity);
     const layerIndex = this.settings.layers.findIndex((l) => l.id === e.layerId);
-    Tone.getDraw().schedule(() => this.onNote({ ...e, layerIndex }), audioTime);
+    const token = this.token;
+    Tone.getDraw().schedule(() => {
+      if (token === this.token && this.isPlaying) this.onNote({ ...e, layerIndex });
+    }, audioTime);
   }
 }

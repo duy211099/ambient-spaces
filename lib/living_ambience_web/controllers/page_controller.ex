@@ -7,8 +7,7 @@ defmodule LivingAmbienceWeb.PageController do
     render(conn, :home, layout: false)
   end
 
-  # Throwaway spike: generative music playground.
   def music(conn, _params) do
-    render(conn, :music, layout: false, page_title: "Music lab")
+    render(conn, :music, layout: false, page_title: "Music studio")
   end
 end

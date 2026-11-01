@@ -3,6 +3,8 @@ import { effectiveLayer, type EffectiveLayer } from "../mood.ts";
 import { CAPS, type BusSettings, type DriftTarget, type LayerSettings, type StudioSettings } from "../settings.ts";
 
 const RAMP = 0.3;
+const LAYER_FADE = 2;
+const DISPOSE_AFTER_MS = 8000;
 const REVERB_WET = 0.5;
 // Freeverb's one-pole damping goes unstable above ~sampleRate/pi, so keep it well under that.
 const FREEVERB_DAMPENING_HZ = 10000;
@@ -94,13 +96,19 @@ export class StudioGraph {
     this.channels.set(l.id, { filter, volume, send });
   }
 
-  removeLayer(id: string): void {
+  /** Fades the channel out, then disposes it once the instrument's tail is gone. */
+  removeLayer(id: string, immediate = false): void {
     const ch = this.channels.get(id);
     if (!ch) return;
     this.channels.delete(id);
-    ch.filter.dispose();
-    ch.volume.dispose();
-    ch.send.dispose();
+    const dispose = () => {
+      ch.filter.dispose();
+      ch.volume.dispose();
+      ch.send.dispose();
+    };
+    if (immediate) return dispose();
+    ch.volume.volume.rampTo(-100, LAYER_FADE);
+    setTimeout(dispose, DISPOSE_AFTER_MS);
   }
 
   applyLayer(l: LayerSettings, eff: EffectiveLayer): void {
@@ -131,7 +139,7 @@ export class StudioGraph {
       this.damp.disconnect(old);
       this.damp.connect(this.reverb);
       this.reverb.connect(this.master);
-      setTimeout(() => old.dispose(), 8000);
+      setTimeout(() => old.dispose(), DISPOSE_AFTER_MS);
     } else if (this.reverb instanceof Tone.Freeverb) {
       this.reverb.roomSize.rampTo(b.reverbSize, RAMP);
     } else {
@@ -161,7 +169,7 @@ export class StudioGraph {
   }
 
   dispose(): void {
-    for (const id of [...this.channels.keys()]) this.removeLayer(id);
+    for (const id of [...this.channels.keys()]) this.removeLayer(id, true);
     this.delay.dispose();
     this.damp.dispose();
     this.reverb.dispose();
